@@ -1,0 +1,188 @@
+version: '3'
+
+vars:
+  # ── Версии Go-инструментов ──
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.11.4'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.9.2'
+  BUF_VERSION: '1.68.1'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+  OGEN_VERSION: 'v1.20.3'
+  MOCKERY_VERSION: 'v3.7.0'
+  GOOSE_VERSION: 'v3.27.0'
+  YQ_VERSION: 'v4.52.5'
+  ENVSUBST_VERSION: 'v1.4.3'
+
+  # ── Версии Docker-образов ──
+  POSTGRES_IMAGE: 'postgres:18.3-alpine3.23'
+  MONGO_IMAGE: 'mongo:8.2'
+  REDIS_IMAGE: 'redis:8.6.2-alpine3.23'
+  KAFKA_IMAGE: 'confluentinc/cp-kafka:8.2.0'
+  KAFKA_LOCAL_IMAGE: 'confluentinc/confluent-local:8.2.0'
+  KAFKA_UI_IMAGE: 'ghcr.io/kafbat/kafka-ui:v1.4.2'
+  ELASTICSEARCH_IMAGE: 'docker.elastic.co/elasticsearch/elasticsearch:9.3.3'
+  KIBANA_IMAGE: 'docker.elastic.co/kibana/kibana:9.3.3'
+  OTEL_COLLECTOR_IMAGE: 'otel/opentelemetry-collector-contrib:0.150.0'
+  PROMETHEUS_IMAGE: 'prom/prometheus:v3.11.2'
+  GRAFANA_IMAGE: 'grafana/grafana:13.0.0'
+  JAEGER_IMAGE: 'jaegertracing/jaeger:2.17.0'
+  ENVOY_IMAGE: 'envoyproxy/envoy:v1.37.2'
+  NGINX_IMAGE: 'nginx:1.30.0-alpine3.23'
+
+tasks:
+  # ── Форматирование ──
+  format:
+    desc: "Форматирует код (task format / task format -- 3)"
+    cmds: [ "python3 scripts/pipeline.py run-task format '{{.CLI_ARGS | default \"*\"}}'" ]
+
+  # ── Сборка ──
+  build:
+    desc: "Собирает все Go-модули (task build / task build -- 3)"
+    cmds: [ "python3 scripts/pipeline.py build '{{.CLI_ARGS | default \"*\"}}'" ]
+
+  # ── Линтер ──
+  lint:
+    desc: "Запускает линтер (task lint / task lint -- 3)"
+    cmds: [ "python3 scripts/pipeline.py run-task lint '{{.CLI_ARGS | default \"*\"}}'" ]
+
+  # ── Генерация моков ──
+  mocks:gen:
+    desc: "Генерирует моки (task mocks:gen / task mocks:gen -- 3)"
+    cmds: [ "python3 scripts/pipeline.py run-task mocks:gen '{{.CLI_ARGS | default \"*\"}}' --find-by .mockery.yaml" ]
+
+  # ── Генерация кода (proto + OpenAPI) ──
+  gen:
+    desc: "Перегенерирует proto и OpenAPI код (task gen / task gen -- 3)"
+    vars:
+      WEEK: '{{.CLI_ARGS | default "*"}}'
+    cmds:
+      - "python3 scripts/pipeline.py run-task proto:gen '{{.WEEK}}' --check-exists"
+      - "python3 scripts/pipeline.py run-task ogen:gen '{{.WEEK}}' --check-exists"
+
+  regen:
+    desc: "Удаляет bin + сгенерированный код и перегенерирует с нуля (task regen / task regen -- 3)"
+    vars:
+      WEEK: '{{.CLI_ARGS | default "*"}}'
+    cmds:
+      - "python3 scripts/pipeline.py clean-gen '{{.WEEK}}'"
+      - "python3 scripts/pipeline.py run-task proto:gen '{{.WEEK}}' --check-exists"
+      - "python3 scripts/pipeline.py run-task ogen:gen '{{.WEEK}}' --check-exists"
+
+  # ── API-тесты ──
+  test:api:
+    desc: "Запускает API-тесты (task test:api / task test:api -- 3)"
+    cmds: [ "python3 scripts/pipeline.py run-task test:api '{{.CLI_ARGS | default \"*\"}}' --check-exists" ]
+
+  # ── Очистка ──
+  clean:
+    desc: "Удаляет директории bin и mocks (task clean / task clean -- 3)"
+    cmds: [ "python3 scripts/pipeline.py clean '{{.CLI_ARGS | default \"*\"}}'" ]
+
+  # ── Пайплайны ──
+  all:
+    desc: "Полный пайплайн (task all / task all -- 3 / task all -- '3 --clean')"
+    cmds: [ "python3 scripts/pipeline.py all '{{.CLI_ARGS | default \"*\"}}'" ]
+  all:clean:
+    desc: "Полный пайплайн с очисткой (task all:clean / task all:clean -- 3)"
+    cmds: [ "python3 scripts/pipeline.py all '{{.CLI_ARGS | default \"*\"}}' --clean" ]
+
+  # ── Синхронизация версий ──
+  _ensure-pyyaml:
+    internal: true
+    status:
+      - python3 -c "import yaml"
+    cmds:
+      - pip3 install --quiet pyyaml
+
+  sync:
+    desc: "Синхронизирует все версии (инструменты + Docker-образы + Go)"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py
+
+  sync:taskfiles:
+    desc: "Синхронизирует версии инструментов в дочерних Taskfile"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py taskfiles
+
+  sync:env:
+    desc: "Синхронизирует версии Docker-образов в .env файлах"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py env
+
+  sync:go:
+    desc: "Синхронизирует версию Go во всех go.mod и go.work файлах"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py go
+
+  sync:deps:
+    desc: "Обновляет Go-зависимости во всех модулях (go get -u + go mod tidy + go work sync)"
+    cmds:
+      - python3 scripts/sync-versions.py deps
+
+  # ── Синхронизация версий: homeworks ──
+  sync:hw:
+    desc: "Синхронизирует все версии в homeworks/ (taskfiles + env + go)"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py hw
+
+  sync:hw:taskfiles:
+    desc: "Синхронизирует версии инструментов в Taskfile домашек"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py hw:taskfiles
+
+  sync:hw:env:
+    desc: "Синхронизирует версии Docker-образов в .env файлах домашек"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py hw:env
+
+  sync:hw:go:
+    desc: "Синхронизирует версию Go в go.mod и go.work домашек"
+    deps: [_ensure-pyyaml]
+    cmds:
+      - python3 scripts/sync-versions.py hw:go
+
+  # ── Обновление версий ──
+  update:
+    desc: "Обновляет версии Go-инструментов и Docker-образов из GitHub/Docker Hub"
+    cmds:
+      - python3 scripts/update-versions.py
+
+  update:dry:
+    desc: "Показывает доступные обновления (без изменений)"
+    cmds:
+      - python3 scripts/update-versions.py --dry-run
+
+  update:tools:
+    desc: "Обновляет только версии Go-инструментов"
+    cmds:
+      - python3 scripts/update-versions.py tools
+
+  update:images:
+    desc: "Обновляет только версии Docker-образов"
+    cmds:
+      - python3 scripts/update-versions.py images
+
+  # ── Документация ──
+  docs:dev:
+    desc: "Запускает локальный dev-сервер документации (VitePress)"
+    cmds:
+      - npm run docs:dev
+
+  docs:build:
+    desc: "Собирает статику документации (VitePress)"
+    cmds:
+      - npm run docs:build
+
+  docs:preview:
+    desc: "Предпросмотр собранной документации (VitePress)"
+    cmds:
+      - npm run docs:preview

@@ -1,0 +1,11 @@
+type: object
+required:
+  - temperature
+properties:
+  temperature:
+    type: number
+    format: double
+    description: Температура в градусах Цельсия
+    minimum: -100
+    maximum: 100
+    example: 25.5

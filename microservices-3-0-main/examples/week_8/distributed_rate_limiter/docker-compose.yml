@@ -1,0 +1,117 @@
+# Архитектура метрик (push-модель):
+# Go App -> OTel Collector (:4317) -> Prometheus Remote Write (:9090) -> Grafana (:3000)
+
+services:
+
+  # gRPC-приложение (распределённый rate limiter).
+  # Запускается в нескольких репликах: docker compose up -d --scale app=3
+  app:
+    build: .
+    env_file: .env
+    environment:
+      # Переопределяем хосты: внутри Docker-сети сервисы доступны по имени контейнера,
+      # а не по localhost, как при локальном запуске.
+      - GRPC_HOST=0.0.0.0
+      - REDIS_HOST=redis
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - app-net
+
+  # Nginx как gRPC load balancer перед инстансами app.
+  # Docker DNS резолвит "app" во все реплики — round-robin из коробки.
+  nginx:
+    image: ${NGINX_IMAGE}
+    ports:
+      - "${GRPC_PORT}:50051"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - app-net
+
+  # Redis для распределённого rate limiting (GCRA через redis_rate).
+  redis:
+    image: ${REDIS_IMAGE}
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-net
+
+  # Хранилище метрик (принимает данные через Remote Write API)
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    command:
+      - --config.file=/dev/null
+      - --web.enable-remote-write-receiver # включает POST /api/v1/write
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-net
+
+  # Веб-интерфейс для визуализации метрик (http://localhost:3000)
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-net
+
+  # Принимает метрики от приложений (OTLP gRPC) и пушит в Prometheus
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "${OTEL_GRPC_PORT}:4317"
+      - "${OTEL_METRICS_PORT}:8888"
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - app-net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-net:
+    name: app-net
+    external: false

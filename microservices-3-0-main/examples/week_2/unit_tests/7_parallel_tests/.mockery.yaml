@@ -1,0 +1,36 @@
+# Конфигурация mockery v3.
+# Документация: https://vektra.github.io/mockery/latest/configuration/
+
+# Шаблон testify с expecter API.
+template: testify
+
+# Форматирование сгенерированного кода.
+formatter: goimports
+
+# Директория для сгенерированных моков (рядом с интерфейсом в подпапке mocks).
+dir: "{{.InterfaceDir}}/mocks"
+
+# Имя файла мока (snake_case через функцию snakecase).
+filename: "mock_{{ .InterfaceName | snakecase }}.go"
+
+# Имя пакета моков.
+pkgname: "mocks"
+
+# Имя структуры мока (совпадает с именем интерфейса).
+structname: "{{.InterfaceName}}"
+
+# Принудительная перезапись существующих файлов.
+force-file-write: true
+
+# Boilerplate текст (лицензия, заголовок).
+template-data:
+  boilerplate-file: ".mockery_boilerplate_text.txt"
+
+packages:
+  github.com/olezhek28-courses/microservices-course-examples/examples/week_2/unit_tests/7_parallel_tests/internal/api/ufo/v1:
+    config:
+      include-interface-regex: ".*Service"
+
+  github.com/olezhek28-courses/microservices-course-examples/examples/week_2/unit_tests/7_parallel_tests/internal/service/ufo:
+    config:
+      include-interface-regex: ".*Repository"

@@ -1,0 +1,46 @@
+parameters:
+  - $ref: ../params/city.yaml
+
+get:
+  summary: Get weather data for a city
+  description: Возвращает текущие данные о погоде для указанного города
+  operationId: GetWeatherByCity
+  tags:
+    - Weather
+  responses:
+    '200':
+      description: Данные о погоде успешно получены
+      content:
+        application/json:
+          schema:
+            $ref: ../components/weather.yaml
+    '400':
+      $ref: '../components/responses/bad_request.yaml'
+    '404':
+      $ref: '../components/responses/weather_not_found.yaml'
+    '500':
+      $ref: '../components/responses/internal_server_error.yaml'
+
+put:
+  summary: Update or create weather data for a city
+  description: Обновляет или создаёт данные о погоде для указанного города
+  operationId: UpdateWeatherByCity
+  tags:
+    - Weather
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/update_weather_request.yaml
+  responses:
+    '200':
+      description: Данные о погоде успешно обновлены
+      content:
+        application/json:
+          schema:
+            $ref: ../components/weather.yaml
+    '400':
+      $ref: '../components/responses/bad_request.yaml'
+    '500':
+      $ref: '../components/responses/internal_server_error.yaml'

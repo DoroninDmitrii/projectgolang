@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+// Package common.v1 содержит общие структуры для IAM-сервисов.
+package common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/student/shared/pkg/proto/common/v1;commonv1";
+
+// Session информация о сессии пользователя.
+message Session {
+  // uuid уникальный идентификатор сессии.
+  string uuid = 1;
+
+  // created_at время создания сессии.
+  google.protobuf.Timestamp created_at = 2;
+
+  // updated_at время последнего обновления сессии.
+  google.protobuf.Timestamp updated_at = 3;
+
+  // expires_at время истечения сессии.
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+// UserInfo базовая информация о пользователе.
+message UserInfo {
+  // login логин пользователя.
+  string login = 1;
+}
+
+// User полная информация о пользователе.
+message User {
+  // uuid уникальный идентификатор пользователя.
+  string uuid = 1;
+
+  // info базовая информация.
+  UserInfo info = 2;
+
+  // created_at дата создания.
+  google.protobuf.Timestamp created_at = 3;
+
+  // updated_at дата обновления.
+  google.protobuf.Timestamp updated_at = 4;
+}

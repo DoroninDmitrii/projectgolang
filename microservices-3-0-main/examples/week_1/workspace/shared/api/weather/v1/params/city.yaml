@@ -1,0 +1,13 @@
+name: city
+in: path
+required: true
+description: |
+  Название города для запроса данных о погоде.
+  Допускаются буквы (включая кириллицу), пробелы, дефисы и апострофы.
+schema:
+  type: string
+  minLength: 1
+  maxLength: 100
+  # Паттерн: буквы Unicode (включая кириллицу), пробелы, дефисы, апострофы
+  pattern: "^[\\p{L}][\\p{L}\\s'\\-]*$"
+  example: "Moscow"

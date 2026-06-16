@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+// Package ufo.v1 содержит API для работы с наблюдениями НЛО
+package ufo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_4/di/shared/pkg/proto/ufo/v1;ufo_v1";
+
+// UFOService предоставляет API для работы с наблюдениями НЛО
+service UFOService {
+  // Create создает новое наблюдение НЛО
+  rpc Create(CreateRequest) returns (CreateResponse);
+
+  // Get возвращает наблюдение НЛО по идентификатору
+  rpc Get(GetRequest) returns (GetResponse);
+
+  // Update обновляет существующее наблюдение НЛО
+  rpc Update(UpdateRequest) returns (UpdateResponse);
+
+  // Delete выполняет мягкое удаление наблюдения НЛО
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
+// Sighting представляет полную информацию о наблюдении НЛО
+message Sighting {
+  // uuid уникальный идентификатор наблюдения
+  string uuid = 1;
+
+  // observed_at время наблюдения НЛО
+  google.protobuf.Timestamp observed_at = 2;
+
+  // location место наблюдения
+  string location = 3;
+
+  // description описание наблюдаемого объекта
+  string description = 4;
+
+  // color цвет объекта (опционально)
+  google.protobuf.StringValue color = 5;
+
+  // sound признак наличия звука (опционально)
+  google.protobuf.BoolValue sound = 6;
+
+  // duration_seconds продолжительность наблюдения в секундах (опционально)
+  google.protobuf.Int32Value duration_seconds = 7;
+
+  // created_at время создания записи
+  google.protobuf.Timestamp created_at = 8;
+
+  // updated_at время последнего обновления записи
+  google.protobuf.Timestamp updated_at = 9;
+
+  // deleted_at время удаления записи (опционально)
+  google.protobuf.Timestamp deleted_at = 10;
+}
+
+// CreateRequest запрос на создание наблюдения НЛО
+message CreateRequest {
+  // observed_at время наблюдения НЛО
+  google.protobuf.Timestamp observed_at = 1;
+
+  // location место наблюдения
+  string location = 2;
+
+  // description описание наблюдаемого объекта
+  string description = 3;
+
+  // color цвет объекта (опционально)
+  google.protobuf.StringValue color = 4;
+
+  // sound признак наличия звука (опционально)
+  google.protobuf.BoolValue sound = 5;
+
+  // duration_seconds продолжительность наблюдения в секундах (опционально)
+  google.protobuf.Int32Value duration_seconds = 6;
+}
+
+// CreateResponse ответ на запрос создания наблюдения
+message CreateResponse {
+  // uuid идентификатор созданного наблюдения
+  string uuid = 1;
+}
+
+// GetRequest запрос на получение наблюдения по идентификатору
+message GetRequest {
+  // uuid идентификатор наблюдения
+  string uuid = 1;
+}
+
+// GetResponse ответ с данными наблюдения
+message GetResponse {
+  // sighting данные наблюдения
+  Sighting sighting = 1;
+}
+
+// UpdateRequest запрос на обновление наблюдения
+message UpdateRequest {
+  // uuid идентификатор наблюдения для обновления
+  string uuid = 1;
+
+  // observed_at время наблюдения НЛО (опционально)
+  google.protobuf.Timestamp observed_at = 2;
+
+  // location место наблюдения (опционально)
+  google.protobuf.StringValue location = 3;
+
+  // description описание наблюдаемого объекта (опционально)
+  google.protobuf.StringValue description = 4;
+
+  // color цвет объекта (опционально)
+  google.protobuf.StringValue color = 5;
+
+  // sound признак наличия звука (опционально)
+  google.protobuf.BoolValue sound = 6;
+
+  // duration_seconds продолжительность наблюдения в секундах (опционально)
+  google.protobuf.Int32Value duration_seconds = 7;
+}
+
+// UpdateResponse ответ на запрос обновления наблюдения
+message UpdateResponse {}
+
+// DeleteRequest запрос на удаление наблюдения
+message DeleteRequest {
+  // uuid идентификатор наблюдения для удаления
+  string uuid = 1;
+}
+
+// DeleteResponse ответ на запрос удаления наблюдения
+message DeleteResponse {}

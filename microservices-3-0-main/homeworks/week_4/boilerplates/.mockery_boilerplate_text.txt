@@ -1,0 +1,2 @@
+// Code generated for student service
+// © Student 2026.

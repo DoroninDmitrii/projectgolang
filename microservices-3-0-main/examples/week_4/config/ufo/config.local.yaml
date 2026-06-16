@@ -1,0 +1,11 @@
+grpc:
+  host: "localhost"
+  port: "50051"
+
+pg:
+  host: "localhost"
+  port: "5433"
+  database: "ufo"
+  user: "ufo_admin"
+  password: "ufo_secret"
+  sslmode: "disable"

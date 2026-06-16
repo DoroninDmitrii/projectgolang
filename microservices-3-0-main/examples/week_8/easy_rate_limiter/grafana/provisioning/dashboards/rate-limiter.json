@@ -1,0 +1,132 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "gRPC RPS — OK vs Rejected",
+      "description": "RPS gRPC сервера с разбивкой: OK (успешные) и ResourceExhausted (отклонённые rate limiter'ом).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "sum(rate(rpc_server_call_duration_seconds_count{rpc_response_status_code=\"OK\"}[1m])) or vector(0)", "legendFormat": "OK"},
+        {"expr": "sum(rate(rpc_server_call_duration_seconds_count{rpc_response_status_code=\"RESOURCE_EXHAUSTED\"}[1m])) or vector(0)", "legendFormat": "ResourceExhausted (rejected)"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "min": 0},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "OK"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byName", "options": "ResourceExhausted (rejected)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}
+        ]
+      }
+    },
+    {
+      "title": "HTTP RPS — OK vs Rejected",
+      "description": "RPS HTTP сервера с разбивкой по HTTP статус-коду: 2xx (успешные) и 429 (отклонённые rate limiter'ом).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {"expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"2..\"}[1m])) or vector(0)", "legendFormat": "2xx (OK)"},
+        {"expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=\"429\"}[1m])) or vector(0)", "legendFormat": "429 (rejected)"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "reqps", "min": 0},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "2xx (OK)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byName", "options": "429 (rejected)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}
+        ]
+      }
+    },
+    {
+      "title": "gRPC Rate Limited Requests (%)",
+      "description": "Процент gRPC запросов, отклонённых rate limiter'ом (ResourceExhausted / total * 100).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "(sum(rate(rpc_server_call_duration_seconds_count{rpc_response_status_code=\"RESOURCE_EXHAUSTED\"}[1m])) or vector(0)) / (sum(rate(rpc_server_call_duration_seconds_count[1m])) > 0) * 100", "legendFormat": "rejected %"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 50}]}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "rejected %"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}
+        ]
+      }
+    },
+    {
+      "title": "HTTP Rate Limited Requests (%)",
+      "description": "Процент HTTP запросов, отклонённых rate limiter'ом (429 / total * 100).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "(sum(rate(http_server_request_duration_seconds_count{http_response_status_code=\"429\"}[1m])) or vector(0)) / (sum(rate(http_server_request_duration_seconds_count[1m])) > 0) * 100", "legendFormat": "rejected %"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 50}]}},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "rejected %"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}
+        ]
+      }
+    },
+    {
+      "title": "gRPC RPS by Method",
+      "description": "RPS gRPC сервера с разбивкой по методу и статус-коду.",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [
+        {"expr": "sum(rate(rpc_server_call_duration_seconds_count[1m])) by (rpc_method, rpc_response_status_code) or vector(0)", "legendFormat": "{{rpc_method}} {{rpc_response_status_code}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}}
+    },
+    {
+      "title": "HTTP RPS by Route",
+      "description": "RPS HTTP сервера с разбивкой по маршруту и статус-коду.",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {"expr": "sum(rate(http_server_request_duration_seconds_count[1m])) by (http_route, http_response_status_code) or vector(0)", "legendFormat": "{{http_route}} {{http_response_status_code}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}}
+    },
+    {
+      "title": "gRPC Request Duration (p50/p95/p99)",
+      "description": "Перцентили длительности gRPC запросов из OTel histogram (rpc.server.call.duration).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(rpc_server_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(rpc_server_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(rpc_server_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}}
+    },
+    {
+      "title": "HTTP Request Duration (p50/p95/p99)",
+      "description": "Перцентили длительности HTTP запросов из OTel histogram (http.server.request.duration).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["grpc", "http", "rate-limiter", "opentelemetry", "prometheus"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "title": "Rate Limiter - gRPC & HTTP Metrics",
+  "uid": "rate-limiter-grpc"
+}

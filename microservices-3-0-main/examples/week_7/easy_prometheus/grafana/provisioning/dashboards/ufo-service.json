@@ -1,0 +1,65 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "gRPC Request Rate (req/s)",
+      "description": "Метрика rpc.server.call.duration от otelgrpc StatsHandler, автоматически собирается OpenTelemetry.",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(rate(rpc_server_call_duration_seconds_count[1m])) by (rpc_method, rpc_response_status_code)", "legendFormat": "{{rpc_method}} {{rpc_response_status_code}}"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "gRPC Request Duration P95 (sec)",
+      "description": "Перцентиль длительности запросов из OTel histogram (rpc.server.call.duration, единица: секунды).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(rpc_server_call_duration_seconds_bucket[5m])) by (le))", "legendFormat": "P95"}],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Наблюдения НЛО (всего создано)",
+      "description": "Кастомная бизнес-метрика ufo_service.sightings.created, отправляется через тот же OTel pipeline.",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 8},
+      "targets": [{"expr": "ufo_service_sightings_created_total", "legendFormat": "created"}],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Наблюдения НЛО (активных)",
+      "description": "Кастомная бизнес-метрика ufo_service.sightings.active (UpDownCounter).",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 6, "x": 6, "y": 8},
+      "targets": [{"expr": "ufo_service_sightings_active", "legendFormat": "active"}],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Кастомная Histogram: RPC Duration (p50/p95/p99)",
+      "description": "Перцентили из кастомной гистограммы ufo_service.rpc.duration (interceptor).",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(ufo_service_rpc_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(ufo_service_rpc_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(ufo_service_rpc_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["grpc", "opentelemetry", "prometheus"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "title": "UFO Service - gRPC Metrics (OTel Push)",
+  "uid": "ufo-service-grpc"
+}

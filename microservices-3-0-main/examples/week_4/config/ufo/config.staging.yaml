@@ -1,0 +1,11 @@
+grpc:
+  host: "0.0.0.0"
+  port: "50051"
+
+pg:
+  host: "postgres-staging"
+  port: "5432"
+  database: "ufo_staging"
+  user: "ufo_admin"
+  password: "staging_secret"
+  sslmode: "require"

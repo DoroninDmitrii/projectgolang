@@ -1,0 +1,25 @@
+services:
+  postgres-ufo:
+    image: ${POSTGRES_IMAGE}
+    container_name: postgres-ufo
+    env_file:
+      - ../../../ufo.env
+    volumes:
+      - postgres_ufo_data:/var/lib/postgresql
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - microservices-net
+
+volumes:
+  postgres_ufo_data:
+
+networks:
+  microservices-net:
+    external: true

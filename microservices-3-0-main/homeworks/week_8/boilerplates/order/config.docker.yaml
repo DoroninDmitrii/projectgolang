@@ -1,0 +1,47 @@
+logger:
+  level: "info"
+
+otel:
+  service_name: "order-service"
+  service_version: "1.0.0"
+  environment: "docker"
+  collector_endpoint: "otel-collector:4317"
+  enable_otlp: true
+  sampling_ratio: 1.0
+
+http:
+  host: "0.0.0.0"
+  port: "8080"
+
+pg:
+  host: "postgres-order"
+  port: "5432"
+  database: "order-service"
+  user: "order-service-user"
+  password: "order-service-password"
+  sslmode: "disable"
+
+inventory_client:
+  address: "inventory-service:50051"
+
+payment_client:
+  address: "payment-service:50052"
+
+iam_client:
+  address: "iam-service:50053"
+
+kafka:
+  brokers:
+    - "kafka:29092"
+
+order_paid_producer:
+  topic_name: "order.paid"
+
+ship_assembled_consumer:
+  topic_name: "assembly.ship-assembled"
+  group_id: "order-service"
+
+rate_limit:
+  redis_address: "redis-ratelimit:6379"
+  rate: 100
+  burst: 200

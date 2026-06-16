@@ -1,0 +1,194 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  BUF_VERSION: '1.69.0'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+  GHZ_VERSION: 'v0.121.0'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  BUF: '{{.BIN_DIR}}/buf'
+  PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
+  PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
+  GHZ: '{{.BIN_DIR}}/ghz'
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - echo '📦 Устанавливаем gofumpt...'
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - echo '📦 Устанавливаем gci...'
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - echo '📦 Устанавливаем golangci-lint...'
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  buf:install:
+    desc: "Устанавливает buf"
+    cmds:
+      - echo '📦 Устанавливаем buf...'
+      - mkdir -p {{.BIN_DIR}}
+      - GOBIN={{.BIN_DIR}} go install github.com/bufbuild/buf/cmd/buf@v{{.BUF_VERSION}}
+    status:
+      - test -x {{.BUF}}
+
+  proto:install-plugins:
+    desc: "Устанавливает protoc-gen-go и protoc-gen-go-grpc"
+    cmds:
+      - echo '📦 Устанавливаем protoc-gen-go...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/protobuf/cmd/protoc-gen-go@{{.PROTOC_GEN_GO_VERSION}}
+      - echo '📦 Устанавливаем protoc-gen-go-grpc...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@{{.PROTOC_GEN_GO_GRPC_VERSION}}
+    status:
+      - test -x {{.PROTOC_GEN_GO}}
+      - test -x {{.PROTOC_GEN_GO_GRPC}}
+
+  ghz:install:
+    desc: "Устанавливает ghz (gRPC нагрузочное тестирование)"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/bojand/ghz/cmd/ghz@{{.GHZ_VERSION}}
+    status:
+      - test -x {{.GHZ}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps:
+      - formatters:install
+      - golangci-lint:install
+      - buf:install
+      - proto:install-plugins
+      - ghz:install
+
+  format:
+    desc: "Форматирует код"
+    deps: [formatters:install]
+    cmds:
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  lint:
+    desc: "Запускает golangci-lint"
+    deps: [golangci-lint:install]
+    cmds:
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./... --config=.golangci.yml'
+
+  deps:update:
+    desc: "Обновляет зависимости"
+    cmds:
+      - go mod tidy -compat={{.GO_VERSION}}
+
+  proto:format:
+    desc: "Форматирует .proto-файлы (buf format)"
+    deps: [buf:install]
+    dir: proto
+    cmds:
+      - '{{.BUF}} format -w'
+
+  proto:lint:
+    desc: "Проверяет .proto файлы линтером buf"
+    deps: [buf:install, proto:install-plugins, proto:format]
+    dir: proto
+    cmds:
+      - '{{.BUF}} lint'
+
+  proto:gen:
+    desc: "Генерирует Go-код из .proto"
+    deps: [buf:install, proto:install-plugins, proto:format, proto:lint]
+    dir: proto
+    cmds:
+      - '{{.BUF}} generate'
+
+  run:grpc:
+    desc: "Запускает gRPC сервер"
+    cmds:
+      - go run cmd/grpc_server/main.go
+
+  up:
+    desc: "Запускает всю инфраструктуру + 3 инстанса приложения за Nginx"
+    cmds:
+      - docker compose --env-file .env up -d --build --scale app=3
+
+  down:
+    desc: "Останавливает контейнеры"
+    cmds:
+      - docker compose down
+
+  test:api:
+    desc: "Запускает API тесты"
+    cmds:
+      - go test -v -count=1 ./tests/...
+
+  # ghz — утилита нагрузочного тестирования для gRPC (https://ghz.sh).
+  # Без --proto использует gRPC Server Reflection (сервер уже регистрирует reflection.Register).
+  #
+  # Ключевые параметры:
+  #   --load-schedule=step   — ступенчатый рост нагрузки (лесенкой)
+  #   --load-start / --load-end / --load-step — начальный, конечный и шаг RPS
+  #   --load-step-duration   — длительность каждой ступени
+  #   --async    — не ждать ответа перед отправкой следующего запроса
+  #   -n 0       — без лимита на количество запросов
+  #   --load-max-duration — ограничение длительности расписания нагрузки
+  #   -z (--duration) — жёсткий лимит общей длительности теста
+  #
+  # Итого: 50 → 100 → 150 → ... → 500 RPS, по 15 сек на ступень, 10 ступеней ≈ 2.5 мин.
+  # Архитектура: Nginx (порт 50051) → 3 инстанса app (round-robin) → общий Redis rate limiter.
+  # Запуск: task up (в одном терминале), task load:grpc (в другом), Grafana на localhost:3000.
+
+  # Нагрузочный тест одной RPC (базовый таск, вызывается из load:grpc).
+  load:rpc:
+    desc: "Нагрузочный тест одной gRPC RPC"
+    deps: [ghz:install]
+    internal: true
+    cmds:
+      - >-
+        {{.GHZ}}
+        --call {{.RPC}}
+        --insecure
+        --async
+        -n 0
+        --data '{{.DATA}}'
+        --load-schedule=step
+        --load-start=50
+        --load-step=50
+        --load-step-duration=15s
+        --load-end=500
+        --load-max-duration=150s
+        -z 150s
+        localhost:{{.GRPC_PORT}}
+
+  # Параллельный нагрузочный тест всех трёх RPC.
+  # Каждый ghz работает независимо — видно per-method лимиты в Grafana.
+  load:grpc:
+    desc: "Нагрузочный тест gRPC: все 3 RPC параллельно (50 → 500 RPS за 2.5 мин)"
+    deps:
+      - task: load:rpc
+        vars:
+          RPC: ufo.v1.UFOService/CreateUfo
+          DATA: '{"title":"Светящийся объект","content":"Наблюдение над Красной площадью"}'
+      - task: load:rpc
+        vars:
+          RPC: ufo.v1.UFOService/GetUfo
+          DATA: '{"id":1}'
+      - task: load:rpc
+        vars:
+          RPC: ufo.v1.UFOService/ListUfo
+          DATA: '{}'

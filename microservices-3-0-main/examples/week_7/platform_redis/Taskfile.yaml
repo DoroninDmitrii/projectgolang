@@ -1,0 +1,159 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+
+  ELASTICSEARCH_URL: 'http://localhost:{{.ELASTICSEARCH_PORT}}'
+  KIBANA_URL: 'http://localhost:{{.KIBANA_PORT}}'
+  LOGS_INDEX_PATTERN: 'platform-redis-logs*'
+
+  MODULES: platform ufo
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - echo '📦 Устанавливаем gofumpt...'
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - echo '📦 Устанавливаем gci...'
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - echo '📦 Устанавливаем golangci-lint {{.GOLANGCI_LINT_VERSION}}...'
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps:
+      - formatters:install
+      - golangci-lint:install
+
+  format:
+    desc: "Форматирует код (gofumpt + gci)"
+    deps: [formatters:install]
+    cmds:
+      - echo '🧹 Форматируем код через gofumpt...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - echo '📦 Сортируем импорты через gci...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  lint:
+    desc: "Запускает golangci-lint для всех модулей"
+    deps: [golangci-lint:install]
+    cmds:
+      - for: { var: MODULES }
+        cmd: '{{.GOLANGCI_LINT}} run --allow-parallel-runners {{.ITEM}}/... --config=.golangci.yml'
+
+  deps:update:
+    desc: "Обновляет зависимости"
+    cmds:
+      - echo '🔄 Синхронизируем go.work...'
+      - go work sync
+      - for: { var: MODULES }
+        cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+
+  up:
+    desc: "Поднимает инфраструктуру (Redis + Jaeger + Prometheus + Grafana + Elasticsearch + Kibana + OTel Collector)"
+    cmds:
+      - echo '🚀 Поднимаем инфраструктуру...'
+      - docker compose -f deploy/docker-compose.yml --env-file .env up --detach
+
+  down:
+    desc: "Останавливает инфраструктуру"
+    cmds:
+      - echo '🛑 Останавливаем инфраструктуру...'
+      - docker compose -f deploy/docker-compose.yml --env-file .env down --volumes
+
+  es:wait:
+    desc: "Ожидает готовности Elasticsearch"
+    cmds:
+      - echo "⏳ Ожидаем готовности Elasticsearch..."
+      - |
+        for i in $(seq 1 60); do
+          curl -sSf {{.ELASTICSEARCH_URL}}/_cluster/health >/dev/null 2>&1 && break
+          sleep 2
+        done
+
+  es:create-template:
+    desc: "Создает index template для data stream platform-redis-logs (нужен в ECS-режиме экспортера)"
+    cmds:
+      - echo "📝 Создаем index template platform-redis-logs-template (data stream)..."
+      - |
+        curl -sS -X PUT {{.ELASTICSEARCH_URL}}/_index_template/platform-redis-logs-template \
+          -H "Content-Type: application/json" \
+          --data '{"index_patterns":["{{.LOGS_INDEX_PATTERN}}"],"data_stream":{},"priority":500}'
+        echo ""
+        echo "✅ Index template platform-redis-logs-template создан"
+
+  es:init:
+    desc: "Ожидает Elasticsearch и создает index template для data stream"
+    cmds:
+      - task: es:wait
+      - task: es:create-template
+
+  kibana:wait:
+    desc: "Ожидает готовности Kibana"
+    cmds:
+      - echo "⏳ Ожидаем готовности Kibana..."
+      - |
+        for i in $(seq 1 60); do
+          curl -sSf {{.KIBANA_URL}}/api/status >/dev/null 2>&1 && break
+          sleep 2
+        done
+
+  kibana:create-view:
+    desc: "Создает Data View в Kibana и устанавливает его как default"
+    cmds:
+      - echo "📝 Создаем Data View {{.LOGS_INDEX_PATTERN}}..."
+      - |
+        RESPONSE=$(curl -sS -X POST {{.KIBANA_URL}}/api/data_views/data_view \
+          -H "kbn-xsrf: true" \
+          -H "Content-Type: application/json" \
+          --data '{"data_view":{"title":"{{.LOGS_INDEX_PATTERN}}","name":"Platform Redis Logs","timeFieldName":"@timestamp","allowNoIndex":true},"override":true}')
+        DATA_VIEW_ID=$(echo "$RESPONSE" | jq -r ".data_view.id // empty")
+        echo "Data View ID: $DATA_VIEW_ID"
+        if [ -n "$DATA_VIEW_ID" ]; then
+          curl -sS -X POST {{.KIBANA_URL}}/api/data_views/default \
+            -H "kbn-xsrf: true" \
+            -H "Content-Type: application/json" \
+            -d "{\"data_view_id\": \"$DATA_VIEW_ID\", \"force\": true}"
+          echo "✅ Data View создан и установлен как default"
+        else
+          echo "❌ Не удалось создать Data View"
+          exit 1
+        fi
+
+  kibana:init:
+    desc: "Готовит Elasticsearch (template) и Kibana (Data View) после `task up`"
+    cmds:
+      - task: es:init
+      - task: kibana:wait
+      - task: kibana:create-view
+
+  run:
+    desc: "Запуск UFO-сервиса (генерирует Redis-нагрузку для демонстрации трейсов/метрик/логов)"
+    cmds:
+      - go run ./ufo/cmd/main.go
+
+  test:api:
+    desc: "Запускает интеграционные тесты (testcontainers)"
+    cmds:
+      - go test -v -count=1 ./platform/...
+      - go test -v -race -count=1 ./ufo/tests/

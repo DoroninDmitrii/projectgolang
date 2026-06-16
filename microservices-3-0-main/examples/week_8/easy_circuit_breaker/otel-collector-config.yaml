@@ -1,0 +1,47 @@
+# Pipeline: Go App -> OTLP Receiver -> Processors -> Prometheus Remote Write
+#
+# Push-модель: приложение отправляет метрики в коллектор,
+# коллектор пушит их в Prometheus через Remote Write API.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317 # стандартный порт OTLP gRPC
+
+processors:
+  # Добавляет метаданные окружения ко всем метрикам.
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: dev
+        action: insert
+
+  # Группирует метрики в батчи перед отправкой.
+  batch:
+    send_batch_size: 1000
+    timeout: 5s
+
+exporters:
+  # Push метрик в Prometheus через Remote Write API
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  telemetry:
+    metrics:
+      level: basic
+
+  extensions: [health_check]
+
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters: [prometheusremotewrite]

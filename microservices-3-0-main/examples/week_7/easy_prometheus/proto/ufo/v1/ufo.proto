@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+// Package ufo.v1 содержит API для работы с наблюдениями НЛО
+package ufo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_7/easy_prometheus/pkg/proto/ufo/v1;ufo_v1";
+
+// UFOService предоставляет API для работы с наблюдениями НЛО
+service UFOService {
+  // Create создает новое наблюдение НЛО
+  rpc Create(CreateRequest) returns (CreateResponse);
+
+  // Get возвращает наблюдение НЛО по идентификатору
+  rpc Get(GetRequest) returns (GetResponse);
+
+  // Delete удаляет наблюдение НЛО по идентификатору
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+
+  // List возвращает список всех наблюдений НЛО
+  rpc List(ListRequest) returns (ListResponse);
+}
+
+// SightingInfo базовая информация о наблюдении НЛО
+message SightingInfo {
+  // observed_at время наблюдения НЛО
+  google.protobuf.Timestamp observed_at = 1;
+
+  // location место наблюдения
+  string location = 2;
+
+  // description описание наблюдаемого объекта
+  string description = 3;
+
+  // color цвет объекта (опционально)
+  google.protobuf.StringValue color = 4;
+
+  // sound признак наличия звука (опционально)
+  google.protobuf.BoolValue sound = 5;
+
+  // duration_seconds продолжительность наблюдения в секундах (опционально)
+  google.protobuf.Int32Value duration_seconds = 6;
+}
+
+// Sighting представляет полную информацию о наблюдении НЛО
+message Sighting {
+  // uuid уникальный идентификатор наблюдения
+  string uuid = 1;
+
+  // Общая информация о наблюдении
+  SightingInfo info = 2;
+
+  // created_at время создания записи
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// CreateRequest запрос на создание наблюдения НЛО
+message CreateRequest {
+  // Данные для создания наблюдения
+  SightingInfo info = 1;
+}
+
+// CreateResponse ответ на запрос создания наблюдения
+message CreateResponse {
+  // uuid идентификатор созданного наблюдения
+  string uuid = 1;
+}
+
+// GetRequest запрос на получение наблюдения по идентификатору
+message GetRequest {
+  // uuid идентификатор наблюдения
+  string uuid = 1;
+}
+
+// GetResponse ответ с данными наблюдения
+message GetResponse {
+  // sighting данные наблюдения
+  Sighting sighting = 1;
+}
+
+// DeleteRequest запрос на удаление наблюдения по идентификатору
+message DeleteRequest {
+  // uuid идентификатор наблюдения
+  string uuid = 1;
+}
+
+// DeleteResponse ответ на запрос удаления наблюдения
+message DeleteResponse {}
+
+// ListRequest запрос на получение списка наблюдений
+message ListRequest {}
+
+// ListResponse ответ со списком наблюдений
+message ListResponse {
+  // sightings список наблюдений
+  repeated Sighting sightings = 1;
+}

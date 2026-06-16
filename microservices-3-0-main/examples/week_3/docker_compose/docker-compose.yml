@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE} # Образ Postgres версии 17.7
+    container_name: mypostgres # Имя контейнера базы данных
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER} # Пользователь базы данных из .env
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} # Пароль базы данных из .env
+    ports:
+      - "${POSTGRES_PORT}:5432" # Пробрасываем порт: внешний из .env, внутренний фиксированный
+    volumes:
+      - pgdata:/var/lib/postgresql # Volume для сохранности данных базы
+    healthcheck: # Проверяем "здоровье" контейнера базы
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped # Автоматический перезапуск контейнера, кроме ручной остановки
+    networks:
+      - app-network
+
+  app:
+    build:
+      context: . # Контекст сборки приложения — текущая директория
+      dockerfile: Dockerfile # Явно указываем Dockerfile
+    container_name: my-go-server # Имя контейнера приложения
+    ports:
+      - "8080:8080" # Пробрасываем порт приложения
+    environment:
+      - HTTP_ADDRESS=${HTTP_ADDRESS} # Адрес HTTP-сервера (хост:порт)
+      - DB_URI=${DB_URI} # Прокидываем строку подключения к базе данных
+    depends_on:
+      postgres:
+        condition: service_healthy # Ждём, пока база станет "здоровой", прежде чем стартовать приложение
+    restart: unless-stopped # Автоматический перезапуск приложения
+    # Сеть можно оставить для расширяемости проекта
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge # Обычная bridge-сеть Docker
+
+volumes:
+  pgdata: # Volume для данных базы, Docker создаст его автоматически

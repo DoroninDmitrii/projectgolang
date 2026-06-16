@@ -1,0 +1,47 @@
+# Новые задачи для недели 6 — добавьте в свой существующий Taskfile.yml
+#
+# Эти задачи добавляют управление инфраструктурой и миграциями IAM сервиса.
+# Объедините их с вашим Taskfile из недели 5.
+
+# В секцию vars добавьте модуль iam:
+#   MODULES: assembly iam inventory order payment platform shared
+#
+# iam.env уже содержит значения по умолчанию — при необходимости измените.
+
+version: '3'
+
+tasks:
+  up-iam:
+    desc: "Поднять IAM сервис и все его зависимости (PostgreSQL + Redis)"
+    dir: deploy/compose/iam
+    cmds:
+      - echo "[task] 🔐 Поднимаем IAM с зависимостями (PostgreSQL + Redis)"
+      - docker compose --env-file ../../../iam.env up --build --detach
+
+  down-iam:
+    desc: "Остановить и удалить IAM сервис и все его зависимости"
+    dir: deploy/compose/iam
+    cmds:
+      - echo "[task] 🛑 Останавливаем IAM с зависимостями"
+      - docker compose --env-file ../../../iam.env down --volumes
+
+  migrate:iam:up:
+    desc: "Применяет все миграции IAM сервиса"
+    deps: [goose:install]
+    dotenv: ['iam.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+
+  migrate:iam:down:
+    desc: "Откатывает последнюю миграцию IAM сервиса"
+    deps: [goose:install]
+    dotenv: ['iam.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+
+  migrate:iam:status:
+    desc: "Показывает статус миграций IAM сервиса"
+    deps: [goose:install]
+    dotenv: ['iam.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'

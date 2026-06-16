@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package ufo.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_8/distributed_rate_limiter/pkg/proto/ufo/v1;ufo_v1";
+
+// UFOService — сервис управления наблюдениями НЛО.
+service UFOService {
+  // CreateUfo создаёт новое наблюдение НЛО.
+  rpc CreateUfo(CreateUfoRequest) returns (CreateUfoResponse);
+  // GetUfo возвращает наблюдение НЛО по ID.
+  rpc GetUfo(GetUfoRequest) returns (GetUfoResponse);
+  // ListUfo возвращает список всех наблюдений НЛО.
+  rpc ListUfo(ListUfoRequest) returns (ListUfoResponse);
+}
+
+// CreateUfoRequest — запрос на создание наблюдения НЛО.
+message CreateUfoRequest {
+  // Заголовок наблюдения.
+  string title = 1;
+  // Описание наблюдения.
+  string content = 2;
+}
+
+// CreateUfoResponse — ответ с ID созданного наблюдения НЛО.
+message CreateUfoResponse {
+  // Идентификатор созданного наблюдения.
+  int64 id = 1;
+}
+
+// GetUfoRequest — запрос на получение наблюдения НЛО.
+message GetUfoRequest {
+  // Идентификатор наблюдения.
+  int64 id = 1;
+}
+
+// GetUfoResponse — ответ с данными наблюдения НЛО.
+message GetUfoResponse {
+  // Идентификатор наблюдения.
+  int64 id = 1;
+  // Заголовок наблюдения.
+  string title = 2;
+  // Описание наблюдения.
+  string content = 3;
+}
+
+// ListUfoRequest — запрос на получение списка наблюдений НЛО.
+message ListUfoRequest {}
+
+// ListUfoResponse — ответ со списком наблюдений НЛО.
+message ListUfoResponse {
+  // Список наблюдений.
+  repeated ListUfoResponseUfo ufos = 1;
+}
+
+// ListUfoResponseUfo — наблюдение НЛО в списке.
+message ListUfoResponseUfo {
+  // Идентификатор наблюдения.
+  int64 id = 1;
+  // Заголовок наблюдения.
+  string title = 2;
+  // Описание наблюдения.
+  string content = 3;
+}

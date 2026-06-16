@@ -1,0 +1,72 @@
+# Архитектура метрик (push-модель):
+# Go App -> OTel Collector (:4317) -> Prometheus Remote Write (:9090) -> Grafana (:3000)
+
+services:
+
+  # Хранилище метрик (принимает данные через Remote Write API)
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    command:
+      - --config.file=/dev/null
+      - --web.enable-remote-write-receiver # включает POST /api/v1/write
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - metrics-net
+
+  # Веб-интерфейс для визуализации метрик (http://localhost:3000)
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/provisioning/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - metrics-net
+
+  # Принимает метрики от приложений (OTLP gRPC) и пушит в Prometheus
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "${OTEL_GRPC_PORT}:4317"
+      - "${OTEL_METRICS_PORT}:8888"
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - metrics-net
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  metrics-net:
+    name: metrics-net
+    external: false

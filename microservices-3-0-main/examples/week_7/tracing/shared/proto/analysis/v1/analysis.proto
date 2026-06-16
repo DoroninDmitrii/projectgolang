@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package analysis.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_7/tracing/shared/pkg/proto/analysis/v1;analysis_v1";
+
+// AnalysisService сервис анализа наблюдений НЛО
+service AnalysisService {
+  // AnalyzeSighting выполняет анализ наблюдения НЛО
+  rpc AnalyzeSighting(AnalyzeSightingRequest) returns (AnalyzeSightingResponse);
+}
+
+// AnalyzeSightingRequest запрос на анализ наблюдения НЛО
+message AnalyzeSightingRequest {
+  // uuid идентификатор наблюдения для анализа
+  string uuid = 1;
+}
+
+// AnalyzeSightingResponse результат анализа наблюдения
+message AnalyzeSightingResponse {
+  // analysis_result текстовый результат анализа
+  string analysis_result = 1;
+  // classification классификация наблюдаемого объекта
+  string classification = 2;
+  // confidence_score уровень уверенности в результате
+  float confidence_score = 3;
+}

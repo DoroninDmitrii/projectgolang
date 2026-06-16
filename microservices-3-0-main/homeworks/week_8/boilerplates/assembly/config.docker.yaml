@@ -1,0 +1,21 @@
+logger:
+  level: "info"
+
+otel:
+  service_name: "assembly-service"
+  service_version: "1.0.0"
+  environment: "docker"
+  collector_endpoint: "otel-collector:4317"
+  enable_otlp: true
+  sampling_ratio: 1.0
+
+kafka:
+  brokers:
+    - "kafka:29092"
+
+order_paid_consumer:
+  topic_name: "order.paid"
+  group_id: "assembly-service"
+
+ship_assembled_producer:
+  topic_name: "assembly.ship-assembled"

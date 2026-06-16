@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/student/shared/pkg/proto/events/v1;eventsv1";
+
+// OrderPaid — событие оплаты заказа
+// Producer: OrderService
+// Consumer: AssemblyService
+message OrderPaid {
+  // Уникальный идентификатор события (для идемпотентности)
+  string event_uuid = 1;
+
+  // Идентификатор оплаченного заказа
+  string order_uuid = 2;
+
+  // Идентификатор пользователя
+  string user_uuid = 3;
+}
+
+// ShipAssembled — событие завершения сборки корабля
+// Producer: AssemblyService
+// Consumer: OrderService
+message ShipAssembled {
+  // Уникальный идентификатор события
+  string event_uuid = 1;
+
+  // Идентификатор заказа
+  string order_uuid = 2;
+
+  // Идентификатор пользователя
+  string user_uuid = 3;
+
+  // Время сборки в секундах
+  int64 build_time_sec = 4;
+
+  // Время завершения сборки
+  google.protobuf.Timestamp assembled_at = 5;
+}

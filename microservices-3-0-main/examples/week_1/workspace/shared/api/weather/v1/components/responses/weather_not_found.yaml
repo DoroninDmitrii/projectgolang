@@ -1,0 +1,8 @@
+description: Данные о погоде для указанного города не найдены
+content:
+  application/json:
+    schema:
+      $ref: '../errors/error.yaml'
+    example:
+      code: 404
+      message: "Weather data for city not found"

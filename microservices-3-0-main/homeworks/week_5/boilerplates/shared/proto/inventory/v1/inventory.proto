@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// TODO: Заменить на актуальный go_package
+option go_package = "github.com/student/shared/pkg/proto/inventory/v1;inventoryv1";
+
+// InventoryService управляет каталогом деталей для космических кораблей
+service InventoryService {
+  // GetPart возвращает деталь по UUID
+  rpc GetPart(GetPartRequest) returns (GetPartResponse);
+
+  // ListParts возвращает список деталей с опциональной фильтрацией
+  rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
+
+  // ValidateCompatibility проверяет совместимость деталей между собой
+  rpc ValidateCompatibility(ValidateCompatibilityRequest) returns (ValidateCompatibilityResponse);
+
+  // ReserveParts резервирует детали для заказа
+  rpc ReserveParts(ReservePartsRequest) returns (ReservePartsResponse);
+
+  // ReleaseParts освобождает ранее зарезервированные детали
+  rpc ReleaseParts(ReleasePartsRequest) returns (ReleasePartsResponse);
+
+  // CommitParts списывает детали со склада после успешной сборки корабля
+  // Вызывается OrderService после получения события ShipAssembled из Kafka
+  // stock -= 1, reserved -= 1 для каждой детали
+  rpc CommitParts(CommitPartsRequest) returns (CommitPartsResponse);
+}
+
+// Тип детали
+enum PartType {
+  // Не указан
+  PART_TYPE_UNSPECIFIED = 0;
+  // Корпус
+  PART_TYPE_HULL = 1;
+  // Двигатель
+  PART_TYPE_ENGINE = 2;
+  // Щит
+  PART_TYPE_SHIELD = 3;
+  // Оружие
+  PART_TYPE_WEAPON = 4;
+}
+
+// Part представляет деталь космического корабля
+message Part {
+  // Уникальный идентификатор детали
+  string uuid = 1;
+
+  // Название детали
+  string name = 2;
+
+  // Описание детали
+  string description = 3;
+
+  // Цена в копейках (5000₽ = 500000)
+  int64 price = 4;
+
+  // Тип детали
+  PartType part_type = 5;
+
+  // Количество на складе
+  int64 stock_quantity = 6;
+
+  // Дата создания
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// Запрос на получение детали по UUID
+message GetPartRequest {
+  // UUID детали
+  string uuid = 1;
+}
+
+// Ответ с деталью
+message GetPartResponse {
+  // Найденная деталь
+  Part part = 1;
+}
+
+// Запрос на получение списка деталей
+message ListPartsRequest {
+  // Фильтр по типу детали
+  PartType part_type = 1;
+
+  // Фильтр по UUID
+  repeated string uuids = 2;
+}
+
+// Ответ со списком деталей
+message ListPartsResponse {
+  // Список деталей
+  repeated Part parts = 1;
+}
+
+// Запрос на проверку совместимости деталей по слотам корабля
+message ValidateCompatibilityRequest {
+  // UUID детали в слоте корпуса (обязательный слот)
+  string hull_uuid = 1;
+
+  // UUID детали в слоте двигателя (обязательный слот)
+  string engine_uuid = 2;
+
+  // UUID детали в слоте щита (опциональный слот, пустая строка — слот не используется)
+  string shield_uuid = 3;
+
+  // UUID детали в слоте оружия (опциональный слот, пустая строка — слот не используется)
+  string weapon_uuid = 4;
+}
+
+// Ответ на проверку совместимости (пустой — значит совместимы)
+message ValidateCompatibilityResponse {}
+
+// Запрос на резервирование деталей
+message ReservePartsRequest {
+  // UUID деталей для резервирования
+  repeated string uuids = 1;
+}
+
+// Ответ на резервирование (пустой — значит успешно)
+message ReservePartsResponse {}
+
+// Запрос на освобождение ранее зарезервированных деталей
+message ReleasePartsRequest {
+  // UUID деталей для освобождения
+  repeated string uuids = 1;
+}
+
+// Ответ на освобождение (пустой — значит успешно)
+message ReleasePartsResponse {}
+
+// Запрос на списание деталей со склада
+message CommitPartsRequest {
+  // UUID деталей для списания
+  repeated string uuids = 1;
+}
+
+// Ответ на списание (пустой — значит успешно)
+message CommitPartsResponse {}

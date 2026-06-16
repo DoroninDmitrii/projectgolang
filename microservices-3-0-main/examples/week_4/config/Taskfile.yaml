@@ -1,0 +1,188 @@
+version: '3'
+
+# Глобальные переменные проекта
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  BUF_VERSION: '1.69.0'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+  GOOSE_VERSION: 'v3.27.1'
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  BUF: '{{.BIN_DIR}}/buf'
+  PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
+  PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
+  GOOSE: '{{.BIN_DIR}}/goose'
+
+  MODULES: ufo
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - echo '📦 Устанавливаем gofumpt...'
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - echo '📦 Устанавливаем gci...'
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  goose:install:
+    desc: "Устанавливает goose (миграции БД)"
+    cmds:
+      - echo '📦 Устанавливаем goose...'
+      - GOBIN={{.BIN_DIR}} go install github.com/pressly/goose/v3/cmd/goose@{{.GOOSE_VERSION}}
+    status:
+      - test -x {{.GOOSE}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps:
+      - formatters:install
+      - golangci-lint:install
+      - buf:install
+      - proto:install-plugins
+      - goose:install
+
+  format:
+    desc: "Форматирует код (gofumpt + gci)"
+    deps: [formatters:install]
+    cmds:
+      - echo '🧹 Форматируем код через gofumpt...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - echo '📦 Сортируем импорты через gci...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint в каталог bin"
+    cmds:
+      - echo "📦 Устанавливаем golangci-lint {{.GOLANGCI_LINT_VERSION}}..."
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  lint:
+    desc: "Запускает golangci-lint для всех модулей"
+    deps: [golangci-lint:install]
+    cmds:
+      - for: { var: MODULES }
+        cmd: '{{.GOLANGCI_LINT}} run --allow-parallel-runners {{.ITEM}}/... --config=.golangci.yml'
+
+  deps:update:
+    desc: "Обновляет зависимости"
+    cmds:
+      - echo '🔄 Синхронизируем go.work...'
+      - go work sync
+      - for: { var: MODULES }
+        cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+
+  buf:install:
+    desc: "Устанавливает Buf в каталог bin"
+    cmds:
+      - echo '📦 Устанавливаем buf {{.BUF_VERSION}}...'
+      - GOBIN={{.BIN_DIR}} go install github.com/bufbuild/buf/cmd/buf@v{{.BUF_VERSION}}
+    status:
+      - test -x {{.BUF}}
+
+  proto:install-plugins:
+    desc: "Устанавливает protoc плагины в каталог bin"
+    cmds:
+      - echo '📦 Installing protoc-gen-go...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/protobuf/cmd/protoc-gen-go@{{.PROTOC_GEN_GO_VERSION}}
+      - echo '📦 Installing protoc-gen-go-grpc...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@{{.PROTOC_GEN_GO_GRPC_VERSION}}
+    status:
+      - test -x {{.PROTOC_GEN_GO}}
+      - test -x {{.PROTOC_GEN_GO_GRPC}}
+
+  proto:format:
+    deps: [buf:install]
+    desc: Форматирование .proto-файлов (buf format)
+    dir: shared/proto
+    cmds:
+      - '{{.BUF}} format -w'
+
+  proto:lint:
+    deps: [buf:install, proto:install-plugins, proto:format]
+    desc: Проверка .proto-файлов на соответствие стилю
+    dir: shared/proto
+    cmds:
+      - '{{.BUF}} lint'
+
+  proto:gen:
+    deps: [buf:install, proto:install-plugins, proto:format, proto:lint]
+    desc: Генерация Go-кода из .proto
+    dir: shared/proto
+    cmds:
+      - '{{.BUF}} generate'
+
+  up-core:
+    desc: "Создать общую сеть для микросервисов"
+    cmds:
+      - echo '[task] 🌐 Создаём общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+      - docker network create microservices-net 2>/dev/null || true
+
+  down-core:
+    desc: "Удалить общую сеть микросервисов"
+    cmds:
+      - echo '[task] 🛑 Удаляем общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+
+  up-ufo:
+    desc: "Поднять UFO сервис и все его зависимости"
+    dir: deploy/compose/ufo # --env-file путь относительно этой директории
+    cmds:
+      - echo "[task] 📦 Поднимаем UFO сервис с зависимостями"
+      - docker compose --env-file ../../../ufo.env up --build --detach
+
+  down-ufo:
+    desc: "Остановить и удалить UFO сервис и все его зависимости"
+    dir: deploy/compose/ufo # --env-file путь относительно этой директории
+    cmds:
+      - echo "[task] 🛑 Останавливаем UFO сервис с зависимостями"
+      - docker compose --env-file ../../../ufo.env down --volumes
+
+  up-all:
+    desc: "Поднять все сервисы по очереди вместе с зависимостями"
+    cmds:
+      - task up-core
+      - task up-ufo
+
+  down-all:
+    desc: "Остановить и удалить все сервисы по очереди вместе с зависимостями"
+    cmds:
+      - task down-core
+      - task down-ufo
+
+  migrate:ufo:up:
+    desc: "Применяет все миграции UFO-сервиса"
+    deps: [goose:install]
+    dotenv: ['ufo.env']
+    cmds:
+      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" up'
+
+  migrate:ufo:down:
+    desc: "Откатывает последнюю миграцию UFO-сервиса"
+    deps: [goose:install]
+    dotenv: ['ufo.env']
+    cmds:
+      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" down'
+
+  migrate:ufo:status:
+    desc: "Показывает статус миграций UFO-сервиса"
+    deps: [goose:install]
+    dotenv: ['ufo.env']
+    cmds:
+      - '{{.GOOSE}} -dir {{.MIGRATIONS_DIR}} postgres "$DB_URI" status'
+
+  test:api:
+    desc: "Запускает интеграционные тесты API"
+    cmds:
+      - go test -v -count=1 ./ufo/tests/...

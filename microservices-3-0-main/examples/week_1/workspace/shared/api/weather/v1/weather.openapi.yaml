@@ -1,0 +1,25 @@
+openapi: 3.0.3
+info:
+  title: WeatherService API
+  version: 1.0.0
+  description: |
+    API для работы с данными о погоде.
+
+    Позволяет получать и обновлять информацию о текущей температуре в различных городах.
+
+# servers - опциональная секция, указывает базовые URL для API.
+# Используется:
+# - при генерации клиента (дефолтный baseURL)
+# - в Swagger UI / Redoc (выбор окружения)
+# - для документирования доступных окружений (dev, staging, prod)
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Weather
+    description: Операции с данными о погоде — получение и обновление информации
+
+paths:
+  /api/v1/weather/{city}:
+    $ref: ./paths/weather_by_city.yaml

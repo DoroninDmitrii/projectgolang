@@ -1,0 +1,51 @@
+# Конфигурация mockery v3.
+# Документация: https://vektra.github.io/mockery/latest/configuration/
+
+# Шаблон testify с expecter API.
+template: testify
+
+# Форматирование сгенерированного кода.
+formatter: goimports
+
+# Директория для сгенерированных моков (рядом с интерфейсом в подпапке mocks).
+dir: "{{.InterfaceDir}}/mocks"
+
+# Имя файла мока (snake_case через функцию snakecase).
+filename: "mock_{{ .InterfaceName | snakecase }}.go"
+
+# Имя пакета моков.
+pkgname: "mocks"
+
+# Имя структуры мока (совпадает с именем интерфейса).
+structname: "{{.InterfaceName}}"
+
+# Принудительная перезапись существующих файлов.
+force-file-write: true
+
+# Boilerplate текст (лицензия, заголовок).
+template-data:
+  boilerplate-file: ".mockery_boilerplate_text.txt"
+
+packages:
+  # TODO: Поменяй prefix github.com/student на свой модуль
+
+  # Order service
+  github.com/student/order/internal/api/order/v1:
+    config:
+      include-interface-regex: ".*Service"
+  github.com/student/order/internal/service/order:
+    config:
+      include-interface-regex: ".*(Repository|Client)"
+
+  # Inventory service
+  github.com/student/inventory/internal/api/inventory/v1:
+    config:
+      include-interface-regex: ".*Service"
+  github.com/student/inventory/internal/service/part:
+    config:
+      include-interface-regex: ".*Repository"
+
+  # Payment service
+  github.com/student/payment/internal/api/payment/v1:
+    config:
+      include-interface-regex: ".*Service"

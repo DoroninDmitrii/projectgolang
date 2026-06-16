@@ -1,0 +1,168 @@
+# Архитектура observability:
+# Go App -> OTel Collector (:4317) -> Jaeger (:16686)       — трейсы
+# Go App -> OTel Collector (:4317) -> Prometheus (:9090)    — метрики (Remote Write)
+# Go App -> OTel Collector (:4317) -> Elasticsearch (:9200) — логи
+# Prometheus -> Grafana (:3000)                              — визуализация метрик
+# Elasticsearch -> Kibana (:5601)                            — визуализация логов
+
+services:
+
+  # --- Tracing ---
+
+  jaeger:
+    image: ${JAEGER_IMAGE}
+    container_name: jaeger
+    ports:
+      - "${JAEGER_UI_PORT}:16686"
+    environment:
+      # Включает приём трейсов по протоколу OTLP (OpenTelemetry Protocol)
+      - COLLECTOR_OTLP_ENABLED=true
+      # Тип хранилища для трейсов. Badger — встраиваемая key-value БД (альтернативы: memory, elasticsearch, cassandra)
+      - STORAGE_TYPE=badger
+      # false = данные сохраняются на диск и переживают перезапуск контейнера (true = только в памяти)
+      - BADGER_EPHEMERAL=false
+      # Директория для хранения значений (value log) Badger
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      # Директория для хранения ключей (LSM-tree) Badger
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - jaeger_data:/badger/data
+      - jaeger_key:/badger/key
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:16686"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - microservices-net
+
+  # --- Metrics ---
+
+  # Хранилище метрик (принимает данные через Remote Write API от OTel Collector)
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    command:
+      - --config.file=/dev/null
+      - --web.enable-remote-write-receiver # включает POST /api/v1/write
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - microservices-net
+
+  # Веб-интерфейс для визуализации метрик (http://localhost:3000)
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../../grafana/provisioning:/etc/grafana/provisioning
+      - ../../grafana/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - microservices-net
+
+  # --- Logging ---
+
+  # Хранилище логов
+  elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE}
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - cluster.name=observability
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "${ELASTICSEARCH_PORT}:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - microservices-net
+
+  # Веб-интерфейс для просмотра логов (http://localhost:5601)
+  kibana:
+    image: ${KIBANA_IMAGE}
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_SEARCHAPIKEYS_ENABLED=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "${KIBANA_PORT}:5601"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - microservices-net
+
+  # --- Telemetry Hub ---
+
+  # Принимает телеметрию от приложений (OTLP gRPC) и маршрутизирует:
+  # трейсы → Jaeger, метрики → Prometheus, логи → Elasticsearch
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    container_name: otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../../otel/collector.yaml:/etc/otelcol-contrib/config.yaml
+    ports:
+      - "${OTEL_GRPC_PORT}:4317"
+      - "${OTEL_METRICS_PORT}:8888"
+    restart: unless-stopped
+    depends_on:
+      jaeger:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+volumes:
+  jaeger_data:
+  jaeger_key:
+  prometheus_data:
+  grafana_data:
+  es_data:
+
+networks:
+  microservices-net:
+    name: microservices-net
+    external: true
+    # Сеть создаётся в Taskfile через docker network create
+    # Все docker-compose файлы подключаются к ней с external: true

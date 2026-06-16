@@ -1,0 +1,83 @@
+version: '3'
+
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  OGEN_VERSION: 'v1.20.3'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  OGEN: '{{.BIN_DIR}}/ogen'
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - echo '📦 Устанавливаем gofumpt...'
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - echo '📦 Устанавливаем gci...'
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - echo '📦 Устанавливаем golangci-lint...'
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  ogen:install:
+    desc: "Устанавливает ogen"
+    cmds:
+      - echo '📦 Устанавливаем ogen...'
+      - GOBIN={{.BIN_DIR}} go install github.com/ogen-go/ogen/cmd/ogen@{{.OGEN_VERSION}}
+    status:
+      - test -x {{.OGEN}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps: [formatters:install, golangci-lint:install, ogen:install]
+
+  format:
+    desc: "Форматирует код (gofumpt + gci)"
+    deps: [formatters:install]
+    cmds:
+      - echo '🧹 Форматируем код через gofumpt...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - echo '📦 Сортируем импорты через gci...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' ! -path '*/pkg/openapi/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  lint:
+    desc: "Запускает golangci-lint"
+    deps: [golangci-lint:install]
+    cmds:
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./... --config=.golangci.yml'
+
+  ogen:gen:
+    desc: "Генерирует Go-код из OpenAPI"
+    deps: [ogen:install]
+    cmds:
+      - echo '🔨 Генерируем Go-код из OpenAPI...'
+      - '{{.OGEN}} -target ./pkg/openapi/weather/v1 -package weatherv1 -clean ./api/weather/v1/weather.openapi.yaml 2>/dev/null'
+
+  gen:
+    desc: "Генерирует весь код"
+    cmds:
+      - task: ogen:gen
+
+  run:
+    desc: "Запускает сервер"
+    cmds:
+      - go run cmd/http_server/main.go
+
+  test:api:
+    desc: "Запускает API-тесты"
+    cmds:
+      - go test -v ./cmd/...

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package ufo.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_7/easy_logs/pkg/proto/ufo/v1;ufo_v1";
+
+// UFOService предоставляет API для работы с наблюдениями НЛО.
+service UFOService {
+  // Get возвращает наблюдение по UUID.
+  rpc Get(GetRequest) returns (GetResponse);
+}
+
+// SightingInfo содержит данные о наблюдении.
+message SightingInfo {
+  // Место наблюдения.
+  string location = 1;
+  // Описание наблюдения.
+  string description = 2;
+  // Имя наблюдателя.
+  string observer = 3;
+  // Подтверждено ли наблюдение.
+  bool is_confirmed = 4;
+}
+
+// Sighting представляет полную запись наблюдения НЛО.
+message Sighting {
+  // Уникальный идентификатор наблюдения.
+  string uuid = 1;
+  // Данные о наблюдении.
+  SightingInfo info = 2;
+  // Время создания записи.
+  google.protobuf.Timestamp created_at = 3;
+  // Время последнего обновления записи.
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+// GetRequest запрос на получение наблюдения.
+message GetRequest {
+  // Уникальный идентификатор наблюдения.
+  string uuid = 1;
+}
+
+// GetResponse ответ с данными наблюдения.
+message GetResponse {
+  // Данные наблюдения.
+  Sighting sighting = 1;
+}

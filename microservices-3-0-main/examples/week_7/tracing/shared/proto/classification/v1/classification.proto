@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package classification.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_7/tracing/shared/pkg/proto/classification/v1;classification_v1";
+
+// ClassificationService сервис классификации наблюдаемых объектов
+service ClassificationService {
+  // ClassifyObject выполняет классификацию объекта по описанию
+  rpc ClassifyObject(ClassifyObjectRequest) returns (ClassifyObjectResponse);
+}
+
+// ClassifyObjectRequest запрос на классификацию объекта
+message ClassifyObjectRequest {
+  // description описание наблюдаемого объекта
+  string description = 1;
+  // color цвет объекта
+  string color = 2;
+  // duration_seconds продолжительность наблюдения в секундах
+  int32 duration_seconds = 3;
+}
+
+// ClassifyObjectResponse результат классификации объекта
+message ClassifyObjectResponse {
+  // object_type тип классифицированного объекта
+  string object_type = 1;
+  // confidence уровень уверенности в классификации
+  float confidence = 2;
+  // explanation пояснение к результату классификации
+  string explanation = 3;
+}

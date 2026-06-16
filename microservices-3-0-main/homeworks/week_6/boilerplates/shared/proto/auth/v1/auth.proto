@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+// Package auth.v1 содержит сервис аутентификации.
+package auth.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "github.com/student/shared/pkg/proto/auth/v1;authv1";
+
+// AuthService сервис аутентификации (вход, проверка сессии).
+service AuthService {
+  // Login выполняет вход в систему и создаёт сессию.
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Whoami проверяет текущую сессию и возвращает информацию о пользователе.
+  rpc Whoami(WhoamiRequest) returns (WhoamiResponse);
+
+  // Logout завершает сессию пользователя.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// LoginRequest запрос на вход в систему.
+message LoginRequest {
+  // login логин пользователя.
+  string login = 1;
+
+  // password пароль пользователя.
+  string password = 2;
+}
+
+// LoginResponse ответ на вход в систему.
+message LoginResponse {
+  // session_uuid UUID созданной сессии.
+  string session_uuid = 1;
+}
+
+// WhoamiRequest запрос на проверку сессии.
+message WhoamiRequest {
+  // session_uuid UUID активной сессии.
+  string session_uuid = 1;
+}
+
+// WhoamiResponse ответ с информацией о сессии и пользователе.
+message WhoamiResponse {
+  // session информация о текущей сессии.
+  common.v1.Session session = 1;
+
+  // user владелец сессии.
+  common.v1.User user = 2;
+}
+
+// LogoutRequest запрос на завершение сессии.
+message LogoutRequest {
+  // session_uuid UUID сессии для завершения.
+  string session_uuid = 1;
+}
+
+// LogoutResponse ответ на завершение сессии.
+message LogoutResponse {}

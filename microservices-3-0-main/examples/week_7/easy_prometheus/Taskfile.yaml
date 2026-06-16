@@ -1,0 +1,167 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  BUF_VERSION: '1.69.0'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+  GHZ_VERSION: 'v0.121.0'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  BUF: '{{.BIN_DIR}}/buf'
+  PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
+  PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
+  GHZ: '{{.BIN_DIR}}/ghz'
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps:
+      - formatters:install
+      - golangci-lint:install
+      - buf:install
+      - proto:install-plugins
+      - ghz:install
+
+  format:
+    desc: "Форматирует весь проект gofumpt + gci"
+    deps: [formatters:install]
+    cmds:
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  lint:
+    desc: "Запускает golangci-lint"
+    deps: [golangci-lint:install]
+    cmds:
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./... --config=.golangci.yml'
+
+  buf:install:
+    desc: "Устанавливает buf"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/bufbuild/buf/cmd/buf@v{{.BUF_VERSION}}
+    status:
+      - test -x {{.BUF}}
+
+  proto:install-plugins:
+    desc: "Устанавливает protoc плагины"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/protobuf/cmd/protoc-gen-go@{{.PROTOC_GEN_GO_VERSION}}
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@{{.PROTOC_GEN_GO_GRPC_VERSION}}
+    status:
+      - test -x {{.PROTOC_GEN_GO}}
+      - test -x {{.PROTOC_GEN_GO_GRPC}}
+
+  proto:format:
+    deps: [buf:install]
+    desc: "Форматирование .proto-файлов (buf format)"
+    dir: proto
+    cmds:
+      - '{{.BUF}} format -w'
+
+  proto:lint:
+    deps: [buf:install, proto:install-plugins, proto:format]
+    desc: "Проверка .proto-файлов"
+    dir: proto
+    cmds:
+      - '{{.BUF}} lint'
+
+  proto:gen:
+    deps: [buf:install, proto:install-plugins, proto:format, proto:lint]
+    desc: "Генерация Go-кода из .proto"
+    dir: proto
+    cmds:
+      - '{{.BUF}} generate'
+
+  deps:update:
+    desc: "Обновляет зависимости"
+    cmds:
+      - go mod tidy -compat={{.GO_VERSION}}
+
+  run:
+    desc: "Запускает gRPC сервер"
+    cmds:
+      - go run cmd/grpc_server/main.go
+
+  up:
+    desc: "Запускает OTel Collector + Prometheus + Grafana"
+    cmds:
+      - docker compose --env-file .env up -d
+
+  down:
+    desc: "Останавливает контейнеры"
+    cmds:
+      - docker compose down
+
+  ghz:install:
+    desc: "Устанавливает ghz (gRPC нагрузочное тестирование)"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/bojand/ghz/cmd/ghz@{{.GHZ_VERSION}}
+    status:
+      - test -x {{.GHZ}}
+
+  test:api:
+    desc: "Запускает API тесты"
+    cmds:
+      - go test -v -count=1 ./tests/...
+
+  # ghz — утилита нагрузочного тестирования для gRPC (https://ghz.sh).
+  # Без --proto использует gRPC Server Reflection (сервер уже регистрирует reflection.Register).
+  #
+  # Ключевые параметры:
+  #   --load-schedule=step   — ступенчатый рост нагрузки (лесенкой)
+  #   --load-start / --load-end / --load-step — начальный, конечный и шаг RPS
+  #   --load-step-duration   — длительность каждой ступени
+  #   --async    — не ждать ответа перед отправкой следующего запроса (latency считаем в Grafana)
+  #   -n 0       — без лимита на количество запросов (по умолчанию 200), работает до конца расписания
+  #   --load-max-duration — ограничение длительности расписания нагрузки (без него ghz не останавливается
+  #     после достижения load-end и продолжает молотить на максимальном RPS бесконечно)
+  #   -z (--duration) — жёсткий лимит общей длительности теста (страховка от зависания)
+  #   --concurrency (по умолчанию 50) — кол-во параллельных воркеров (горутин),
+  #     берущих токены из общего rate limiter. Для быстрого in-memory сервера дефолта хватает.
+  #
+  # Итого: 50 → 100 → 150 → ... → 500 RPS, по 15 сек на ступень, 10 ступеней ≈ 2.5 мин.
+  # Запуск: task up && task run (в одном терминале), task load (в другом), Grafana на localhost:3000.
+  load:
+    desc: "Нагрузочный тест: Create с нарастающей нагрузкой (50 → 500 RPS за 2.5 мин)"
+    deps: [ghz:install]
+    cmds:
+      - >-
+        {{.GHZ}}
+        --call ufo.v1.UFOService/Create
+        --insecure
+        --async
+        -n 0
+        --data '{"info":{"location":"Москва, Красная площадь","description":"Светящийся объект","observed_at":"2024-01-01T00:00:00Z"}}'
+        --load-schedule=step
+        --load-start=50
+        --load-step=50
+        --load-step-duration=15s
+        --load-end=500
+        --load-max-duration=150s
+        -z 150s
+        localhost:{{.GRPC_PORT}}

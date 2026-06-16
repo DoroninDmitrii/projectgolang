@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package ufo.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_8/easy_circuit_breaker/pkg/proto/ufo/v1;ufo_v1";
+
+// UFOService — сервис управления наблюдениями НЛО.
+service UFOService {
+  // CreateUfo создаёт новое наблюдение НЛО.
+  rpc CreateUfo(CreateUfoRequest) returns (CreateUfoResponse);
+  // GetUfo возвращает наблюдение НЛО по ID.
+  rpc GetUfo(GetUfoRequest) returns (GetUfoResponse);
+  // SetFailMode включает/выключает режим симуляции сбоев.
+  rpc SetFailMode(SetFailModeRequest) returns (SetFailModeResponse);
+}
+
+// CreateUfoRequest — запрос на создание наблюдения НЛО.
+message CreateUfoRequest {
+  // Заголовок наблюдения.
+  string title = 1;
+  // Описание наблюдения.
+  string content = 2;
+}
+
+// CreateUfoResponse — ответ с ID созданного наблюдения НЛО.
+message CreateUfoResponse {
+  // Идентификатор созданного наблюдения.
+  int64 id = 1;
+}
+
+// GetUfoRequest — запрос на получение наблюдения НЛО.
+message GetUfoRequest {
+  // Идентификатор наблюдения.
+  int64 id = 1;
+}
+
+// GetUfoResponse — ответ с данными наблюдения НЛО.
+message GetUfoResponse {
+  // Идентификатор наблюдения.
+  int64 id = 1;
+  // Заголовок наблюдения.
+  string title = 2;
+  // Описание наблюдения.
+  string content = 3;
+}
+
+// SetFailModeRequest — запрос на включение/выключение режима сбоев.
+message SetFailModeRequest {
+  // Флаг включения режима сбоев.
+  bool enabled = 1;
+}
+
+// SetFailModeResponse — ответ на запрос изменения режима сбоев.
+message SetFailModeResponse {}

@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package session.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_6/easy_session/pkg/proto/session/v1;session_v1";
+
+// SessionService — сервис управления сессиями пользователей.
+service SessionService {
+  // Register создаёт нового пользователя с хешированием пароля.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Login аутентифицирует пользователя и создаёт сессию в Redis.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // Whoami возвращает информацию о текущем пользователе по токену сессии.
+  rpc Whoami(WhoamiRequest) returns (WhoamiResponse);
+  // Logout удаляет сессию пользователя (идемпотентная операция).
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// RegisterRequest — запрос на регистрацию нового пользователя.
+message RegisterRequest {
+  // email — адрес электронной почты пользователя.
+  string email = 1;
+  // password — пароль пользователя (в открытом виде, хешируется на сервере).
+  string password = 2;
+  // name — имя пользователя.
+  string name = 3;
+}
+
+// RegisterResponse — ответ на регистрацию (пустой при успехе).
+message RegisterResponse {}
+
+// LoginRequest — запрос на вход в систему.
+message LoginRequest {
+  // email — адрес электронной почты пользователя.
+  string email = 1;
+  // password — пароль пользователя.
+  string password = 2;
+}
+
+// LoginResponse — ответ с токеном сессии.
+message LoginResponse {
+  // session_token — токен сессии для последующих запросов.
+  string session_token = 1;
+}
+
+// WhoamiRequest — запрос информации о текущем пользователе (токен передаётся через metadata).
+message WhoamiRequest {}
+
+// WhoamiResponse — информация о текущем пользователе.
+message WhoamiResponse {
+  // email — адрес электронной почты пользователя.
+  string email = 1;
+  // name — имя пользователя.
+  string name = 2;
+}
+
+// LogoutRequest — запрос на выход из системы (токен передаётся через metadata).
+message LogoutRequest {}
+
+// LogoutResponse — ответ на выход (пустой при успехе).
+message LogoutResponse {}

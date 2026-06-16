@@ -1,0 +1,36 @@
+version: '3'
+
+# Новые задачи для недели 5 — добавьте в свой существующий Taskfile.yml
+#
+# Эти задачи добавляют управление Kafka-инфраструктурой.
+# Объедините их с вашим Taskfile из недели 4.
+
+# В секцию vars добавьте модуль assembly:
+#   MODULES: assembly inventory order payment platform
+#
+# core.env уже содержит значения по умолчанию — при необходимости измените.
+
+tasks:
+  up-core:
+    desc: "Создать общую сеть и поднять core контейнеры (Kafka)"
+    cmds:
+      - echo '[task] 🌐 Создаём общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+      - docker network create microservices-net 2>/dev/null || true
+      - echo '[task] 🚀 Поднимаем core контейнеры (Kafka)'
+      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env up --build --detach
+
+  down-core:
+    desc: "Остановить core контейнеры (Kafka) и удалить сеть"
+    cmds:
+      - echo '[task] 🛑 Останавливаем core контейнеры (Kafka)'
+      - docker compose -f deploy/compose/core/docker-compose.yml --env-file core.env down --volumes
+      - echo '[task] 🛑 Удаляем общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+
+  test:e2e:
+    desc: "Запускает e2e-тесты order с реальной Kafka (Redpanda) через testcontainers"
+    dir: order
+    cmds:
+      - echo '🚀 e2e order (Postgres + Redpanda через testcontainers)...'
+      - go test -tags=e2e -count=1 -timeout=300s -v ./tests/e2e/...

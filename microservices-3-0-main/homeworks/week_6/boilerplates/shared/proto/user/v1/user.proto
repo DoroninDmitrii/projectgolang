@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+// Package user.v1 содержит сервис управления пользователями.
+package user.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "github.com/student/shared/pkg/proto/user/v1;userv1";
+
+// UserService сервис управления пользователями (регистрация, получение).
+service UserService {
+  // Register регистрирует нового пользователя.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // GetUser возвращает пользователя по UUID.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+// UserRegistrationInfo данные для регистрации пользователя.
+message UserRegistrationInfo {
+  // info основная информация о пользователе.
+  common.v1.UserInfo info = 1;
+
+  // password пароль.
+  string password = 2;
+}
+
+// RegisterRequest запрос на регистрацию.
+message RegisterRequest {
+  // info данные для регистрации.
+  UserRegistrationInfo info = 1;
+}
+
+// RegisterResponse ответ на регистрацию.
+message RegisterResponse {
+  // user_uuid UUID созданного пользователя.
+  string user_uuid = 1;
+}
+
+// GetUserRequest запрос на получение пользователя.
+message GetUserRequest {
+  // user_uuid UUID пользователя.
+  string user_uuid = 1;
+}
+
+// GetUserResponse ответ с пользователем.
+message GetUserResponse {
+  // user найденный пользователь.
+  common.v1.User user = 1;
+}

@@ -1,0 +1,81 @@
+parameters:
+  - $ref: ../params/city.yaml
+
+get:
+  summary: Get weather data for a city
+  description: Возвращает текущие данные о погоде для указанного города
+  operationId: GetWeatherByCity
+  tags:
+    - Weather
+  responses:
+    '200':
+      description: Данные о погоде успешно получены
+      content:
+        application/json:
+          schema:
+            $ref: ../components/weather.yaml
+    '400':
+      description: Некорректный запрос (невалидное название города)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/error.yaml
+          example:
+            code: 400
+            message: "Invalid city name format"
+    '404':
+      description: Данные о погоде для указанного города не найдены
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/error.yaml
+          example:
+            code: 404
+            message: "Weather data for city 'Unknown' not found"
+    '500':
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/error.yaml
+          example:
+            code: 500
+            message: "Internal server error"
+
+put:
+  summary: Update or create weather data for a city
+  description: Обновляет или создаёт данные о погоде для указанного города
+  operationId: UpdateWeatherByCity
+  tags:
+    - Weather
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/update_weather_request.yaml
+  responses:
+    '200':
+      description: Данные о погоде успешно обновлены
+      content:
+        application/json:
+          schema:
+            $ref: ../components/weather.yaml
+    '400':
+      description: Некорректный запрос (невалидные данные)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/error.yaml
+          example:
+            code: 400
+            message: "Temperature must be between -100 and 100"
+    '500':
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/error.yaml
+          example:
+            code: 500
+            message: "Internal server error"

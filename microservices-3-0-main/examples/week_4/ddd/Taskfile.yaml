@@ -1,0 +1,105 @@
+version: '3'
+
+dotenv: ['app.env']
+
+vars:
+  GO_VERSION: '1.26.0'
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  GOOSE_VERSION: 'v3.27.1'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  GOOSE: '{{.BIN_DIR}}/goose'
+
+  MODULES: app platform
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  goose:install:
+    desc: "Устанавливает goose (миграции БД)"
+    cmds:
+      - GOBIN={{.BIN_DIR}} go install github.com/pressly/goose/v3/cmd/goose@{{.GOOSE_VERSION}}
+    status:
+      - test -x {{.GOOSE}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps: [formatters:install, golangci-lint:install, goose:install]
+
+  format:
+    desc: "Форматирует код (gofumpt + gci)"
+    deps: [formatters:install]
+    cmds:
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  lint:
+    desc: "Запускает golangci-lint для всех модулей"
+    deps: [golangci-lint:install]
+    cmds:
+      - for: { var: MODULES }
+        cmd: '{{.GOLANGCI_LINT}} run --allow-parallel-runners {{.ITEM}}/... --config=.golangci.yml'
+
+  deps:update:
+    desc: "Обновляет зависимости"
+    cmds:
+      - go work sync
+      - for: { var: MODULES }
+        cmd: cd {{.ITEM}} && go mod tidy -compat={{.GO_VERSION}}
+
+  up:
+    desc: "Запускает все контейнеры через Docker Compose"
+    cmds:
+      - docker compose -f deploy/compose/ddd/docker-compose.yml --env-file app.env up --build --detach
+
+  down:
+    desc: "Останавливает все контейнеры"
+    cmds:
+      - docker compose -f deploy/compose/ddd/docker-compose.yml down --volumes
+
+  migrate:up:
+    desc: "Применяет все миграции"
+    deps: [goose:install]
+    cmds:
+      - '{{.GOOSE}} -dir {{.ROOT_DIR}}/migrations postgres "$DB_URI" up'
+
+  migrate:down:
+    desc: "Откатывает последнюю миграцию"
+    deps: [goose:install]
+    cmds:
+      - '{{.GOOSE}} -dir {{.ROOT_DIR}}/migrations postgres "$DB_URI" down'
+
+  migrate:status:
+    desc: "Показывает статус миграций"
+    deps: [goose:install]
+    cmds:
+      - '{{.GOOSE}} -dir {{.ROOT_DIR}}/migrations postgres "$DB_URI" status'
+
+  run:
+    desc: "Запускает приложение"
+    cmds:
+      - go run ./app/cmd/app/...
+
+  test:api:
+    desc: "Запускает интеграционные тесты API"
+    cmds:
+      - go test -v -count=1 ./app/tests/...

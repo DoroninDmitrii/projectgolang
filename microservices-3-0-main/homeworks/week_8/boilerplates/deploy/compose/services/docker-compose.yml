@@ -1,0 +1,111 @@
+# Docker Compose для всех микросервисов.
+# Запуск: task up-all (включает --scale order-service=3)
+
+services:
+
+  # --- HTTP-сервис (масштабируется через --scale) ---
+
+  order-service:
+    build:
+      context: ../../../
+      dockerfile: deploy/dockerfiles/order.Dockerfile
+      args:
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+    # НЕ указываем container_name — при --scale Docker создаёт уникальные имена.
+    # НЕ указываем ports — трафик идёт через Nginx, а не напрямую.
+    volumes:
+      - ../../../order/config.docker.yaml:/config.yaml
+    environment:
+      - CONFIG_PATH=/config.yaml
+    networks:
+      - microservices-net
+
+  # --- Nginx Load Balancer ---
+
+  nginx:
+    image: ${NGINX_IMAGE}
+    container_name: nginx
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ../../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - order-service
+    networks:
+      - microservices-net
+
+  # --- gRPC-сервисы ---
+  # У gRPC-сервисов НЕ указан container_name — это даёт возможность масштабировать
+  # их через --scale (например, для экспериментов). Docker DNS всё равно резолвит
+  # имя сервиса в IP всех реплик. Для отладки по имени контейнера используйте
+  # docker ps (реальные имена вида services-inventory-service-1).
+
+  inventory-service:
+    build:
+      context: ../../../
+      dockerfile: deploy/dockerfiles/inventory.Dockerfile
+      args:
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+    ports:
+      - "50051:50051"
+    volumes:
+      - ../../../inventory/config.docker.yaml:/config.yaml
+    environment:
+      - CONFIG_PATH=/config.yaml
+    networks:
+      - microservices-net
+
+  payment-service:
+    build:
+      context: ../../../
+      dockerfile: deploy/dockerfiles/payment.Dockerfile
+      args:
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+    ports:
+      - "50052:50052"
+    volumes:
+      - ../../../payment/config.docker.yaml:/config.yaml
+    environment:
+      - CONFIG_PATH=/config.yaml
+    networks:
+      - microservices-net
+
+  iam-service:
+    build:
+      context: ../../../
+      dockerfile: deploy/dockerfiles/iam.Dockerfile
+      args:
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+    ports:
+      - "50053:50053"
+    volumes:
+      - ../../../iam/config.docker.yaml:/config.yaml
+    environment:
+      - CONFIG_PATH=/config.yaml
+    networks:
+      - microservices-net
+
+  # --- Kafka consumers ---
+
+  assembly-service:
+    build:
+      context: ../../../
+      dockerfile: deploy/dockerfiles/assembly.Dockerfile
+      args:
+        GO_IMAGE: ${GO_IMAGE}
+        ALPINE_IMAGE: ${ALPINE_IMAGE}
+    volumes:
+      - ../../../assembly/config.docker.yaml:/config.yaml
+    environment:
+      - CONFIG_PATH=/config.yaml
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    name: microservices-net
+    external: true

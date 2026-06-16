@@ -1,0 +1,27 @@
+type: object
+required:
+  - city
+  - temperature
+  - updated_at
+properties:
+  city:
+    type: string
+    description: Название города
+    minLength: 1
+    maxLength: 100
+    example: "Moscow"
+  temperature:
+    type: number
+    format: double
+    description: Температура в градусах Цельсия
+    # Физически допустимый диапазон температур на Земле:
+    # -89.2°C (Антарктида) до +56.7°C (Долина Смерти)
+    # Берём с запасом для возможных аномалий
+    minimum: -100
+    maximum: 100
+    example: 25.5
+  updated_at:
+    type: string
+    format: date-time
+    description: Время последнего обновления данных (ISO 8601)
+    example: "2024-01-15T10:30:00Z"

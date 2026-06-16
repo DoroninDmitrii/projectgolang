@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+// Package weather.v1 содержит API для получения данных о погоде
+package weather.v1;
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_2/layers/pkg/proto/weather/v1;weather_v1";
+
+// WeatherService предоставляет API для получения погодных условий
+service WeatherService {
+  // GetCurrentWeather возвращает текущие погодные условия по местоположению
+  rpc GetCurrentWeather(GetCurrentWeatherRequest) returns (GetCurrentWeatherResponse);
+}
+
+// GetCurrentWeatherRequest запрос на получение текущей погоды
+message GetCurrentWeatherRequest {
+  // location местоположение (город, координаты и т.д.)
+  string location = 1;
+}
+
+// GetCurrentWeatherResponse ответ с данными о текущей погоде
+message GetCurrentWeatherResponse {
+  // conditions текущие погодные условия
+  WeatherConditions conditions = 1;
+}
+
+// WeatherConditions описание погодных условий
+message WeatherConditions {
+  // description описание погоды (ясно, облачно, дождь и т.д.)
+  string description = 1;
+
+  // temperature_celsius температура в градусах Цельсия
+  double temperature_celsius = 2;
+
+  // visibility_km видимость в километрах
+  double visibility_km = 3;
+}

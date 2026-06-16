@@ -1,0 +1,29 @@
+version: v2
+
+# Все proto-зависимости включены локально для работы без сети:
+# - google/api/*.proto - HTTP аннотации для grpc-gateway
+# - buf/validate/*.proto - protovalidate для валидации полей
+#
+# Если вы хотите использовать удаленные зависимости из Buf Schema Registry,
+# раскомментируйте секцию deps ниже и удалите локальные файлы:
+#
+# deps:
+#   - buf.build/googleapis/googleapis      # google/api/annotations.proto, google/api/http.proto
+#   - buf.build/bufbuild/protovalidate     # buf/validate/validate.proto
+#
+# После этого выполните: buf dep update
+
+lint:
+  use:
+    - STANDARD
+    - COMMENT_ENUM
+    - COMMENT_ENUM_VALUE
+    - COMMENT_FIELD
+    - COMMENT_MESSAGE
+    - COMMENT_ONEOF
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+  ignore:
+    # Исключаем внешние proto-файлы из линтинга
+    - google
+    - buf

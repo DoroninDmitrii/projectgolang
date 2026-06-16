@@ -1,0 +1,191 @@
+version: '3'
+
+vars:
+  GOLANGCI_LINT_VERSION: 'v2.12.2'
+  GCI_VERSION: 'v0.14.0'
+  GOFUMPT_VERSION: 'v0.10.0'
+  BUF_VERSION: '1.69.0'
+  PROTOC_GEN_GO_VERSION: 'v1.36.11'
+  PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
+  MOCKERY_VERSION: 'v3.7.0'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GCI: '{{.BIN_DIR}}/gci'
+  GOFUMPT: '{{.BIN_DIR}}/gofumpt'
+  BUF: '{{.BIN_DIR}}/buf'
+  PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
+  PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
+  MOCKERY: '{{.BIN_DIR}}/mockery'
+
+  COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
+  COVERAGE_THRESHOLD: '40'
+
+tasks:
+  formatters:install:
+    desc: "Устанавливает gofumpt и gci"
+    cmds:
+      - echo '📦 Устанавливаем gofumpt...'
+      - GOBIN={{.BIN_DIR}} go install mvdan.cc/gofumpt@{{.GOFUMPT_VERSION}}
+      - echo '📦 Устанавливаем gci...'
+      - GOBIN={{.BIN_DIR}} go install github.com/daixiang0/gci@{{.GCI_VERSION}}
+    status:
+      - test -x {{.GOFUMPT}}
+      - test -x {{.GCI}}
+
+  golangci-lint:install:
+    desc: "Устанавливает golangci-lint"
+    cmds:
+      - echo '📦 Устанавливаем golangci-lint...'
+      - GOBIN={{.BIN_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  buf:install:
+    desc: "Устанавливает buf"
+    cmds:
+      - echo '📦 Устанавливаем buf...'
+      - GOBIN={{.BIN_DIR}} go install github.com/bufbuild/buf/cmd/buf@v{{.BUF_VERSION}}
+    status:
+      - test -x {{.BUF}}
+
+  proto:install-plugins:
+    desc: "Устанавливает protoc-плагины"
+    cmds:
+      - echo '📦 Устанавливаем protoc-gen-go...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/protobuf/cmd/protoc-gen-go@{{.PROTOC_GEN_GO_VERSION}}
+      - echo '📦 Устанавливаем protoc-gen-go-grpc...'
+      - GOBIN={{.BIN_DIR}} go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@{{.PROTOC_GEN_GO_GRPC_VERSION}}
+    status:
+      - test -x {{.PROTOC_GEN_GO}}
+      - test -x {{.PROTOC_GEN_GO_GRPC}}
+
+  mockery:install:
+    desc: "Устанавливает mockery"
+    cmds:
+      - echo '📦 Устанавливаем mockery...'
+      - GOBIN={{.BIN_DIR}} go install github.com/vektra/mockery/v3@{{.MOCKERY_VERSION}}
+    status:
+      - test -x {{.MOCKERY}}
+
+  setup:
+    desc: "Устанавливает все инструменты"
+    deps: [formatters:install, golangci-lint:install, buf:install, proto:install-plugins, mockery:install]
+
+  format:
+    desc: "Форматирует код (gofumpt + gci)"
+    deps: [formatters:install]
+    cmds:
+      - echo '🧹 Форматируем код через gofumpt...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GOFUMPT}} -extra -w {} +
+      - echo '📦 Сортируем импорты через gci...'
+      - find . -type f -name '*.go' ! -path '*/mocks/*' ! -path '*/pkg/proto/*' -exec {{.GCI}} write -s standard -s default -s "prefix(github.com/olezhek28-courses/microservices-course-examples/)" {} +
+
+  lint:
+    desc: "Запускает golangci-lint"
+    deps: [golangci-lint:install]
+    cmds:
+      - '{{.GOLANGCI_LINT}} run --allow-parallel-runners ./... --config=.golangci.yml'
+
+  proto:format:
+    desc: "Форматирует .proto-файлы (buf format)"
+    deps: [buf:install]
+    dir: proto
+    cmds:
+      - echo '🧹 Форматируем .proto-файлы...'
+      - '{{.BUF}} format -w'
+
+  proto:lint:
+    desc: "Проверяет .proto-файлы линтером"
+    deps: [buf:install, proto:install-plugins, proto:format]
+    dir: proto
+    cmds:
+      - echo '🔍 Проверяем .proto-файлы...'
+      - '{{.BUF}} lint'
+
+  proto:gen:
+    desc: "Генерирует Go-код из .proto"
+    deps: [buf:install, proto:install-plugins, proto:format, proto:lint]
+    dir: proto
+    cmds:
+      - echo '🔨 Генерируем Go-код из .proto...'
+      - '{{.BUF}} generate'
+
+  mocks:gen:
+    desc: "Генерирует моки интерфейсов"
+    deps: [mockery:install]
+    cmds:
+      - echo '🧪 Генерация моков...'
+      - '{{.MOCKERY}}'
+
+  run:
+    desc: "Запускает сервер"
+    cmds:
+      - go run cmd/grpc_server/main.go
+
+  test:
+    desc: "Запускает unit-тесты"
+    cmds:
+      - go test -v ./...
+
+  test:api:
+    desc: "Запускает API-тесты (bufconn)"
+    cmds:
+      - go test -v ./tests/...
+
+  coverage:clean:
+    desc: "Очищает директорию с отчётами покрытия"
+    internal: true
+    cmds:
+      - rm -rf {{.COVERAGE_DIR}}
+      - mkdir -p {{.COVERAGE_DIR}}
+
+  test:coverage:
+    desc: "Тесты с покрытием бизнес-логики"
+    deps: [coverage:clean]
+    vars:
+      TARGET_PACKAGES:
+        sh: go list ./internal/... | grep -v "/mocks" | grep -E '/(api|service)/' | tr '\n' ','
+    preconditions:
+      - sh: test -n "{{.TARGET_PACKAGES}}"
+        msg: "Не найдено пакетов для тестирования"
+    cmds:
+      - echo "📦 Целевые пакеты:{{.TARGET_PACKAGES}}"
+      - go test -v -race -covermode=atomic -coverprofile={{.COVERAGE_FILE}} -coverpkg={{.TARGET_PACKAGES}} ./...
+      - echo "📊 Покрытие по функциям:"
+      - go tool cover -func={{.COVERAGE_FILE}}
+      - task: coverage:threshold
+
+  coverage:threshold:
+    desc: "Проверяет соответствие покрытия порогу"
+    internal: true
+    vars:
+      COVERAGE:
+        sh: go tool cover -func={{.COVERAGE_FILE}} | tail -n1 | awk '{print $NF}' | tr -d '%'
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "Файл покрытия не найден. Запустите task test:coverage"
+    cmds:
+      - echo "🧾 Общее покрытие:{{.COVERAGE}}% | Порог:{{.COVERAGE_THRESHOLD}}%"
+      - cmd: test $(echo "{{.COVERAGE}} >= {{.COVERAGE_THRESHOLD}}" | bc) -eq 1
+      - echo "✅ Покрытие соответствует порогу"
+
+  coverage:html:
+    desc: "Генерирует HTML-отчёт покрытия"
+    deps: [test:coverage]
+    vars:
+      HTML_FILE: '{{.COVERAGE_DIR}}/coverage.html'
+    cmds:
+      - go tool cover -html={{.COVERAGE_FILE}} -o {{.HTML_FILE}}
+      - echo "🌐 Отчёт сохранён в {{.HTML_FILE}}"
+      - cmd: open {{.HTML_FILE}}
+        platforms: [darwin]
+      - cmd: xdg-open {{.HTML_FILE}}
+        platforms: [linux]
+      - cmd: start {{.HTML_FILE}}
+        platforms: [windows]
+
+  coverage:check:
+    desc: "Проверяет покрытие без запуска тестов"
+    cmds:
+      - task: coverage:threshold

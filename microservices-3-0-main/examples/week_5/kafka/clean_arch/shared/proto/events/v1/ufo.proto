@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+// Package events.v1 содержит события для обмена сообщениями через Kafka.
+package events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_5/kafka/clean_arch/shared/pkg/proto/events/v1;events_v1";
+
+// UFORecorded событие регистрации наблюдения НЛО.
+message UFORecorded {
+  // uuid уникальный идентификатор наблюдения.
+  string uuid = 1;
+
+  // observed_at дата и время наблюдения.
+  google.protobuf.Timestamp observed_at = 2;
+
+  // location место наблюдения.
+  string location = 3;
+
+  // description описание наблюдаемого объекта.
+  string description = 4;
+}

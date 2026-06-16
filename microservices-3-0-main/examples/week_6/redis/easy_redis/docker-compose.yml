@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: ${REDIS_IMAGE} # Лёгкий образ Redis последней стабильной версии
+    container_name: redis # Явное имя контейнера Redis
+
+    env_file:
+      - .env
+
+    ports:
+      - "${EXTERNAL_REDIS_PORT}:6379"
+      # Пробрасываем внутренний порт Redis на внешний, указанный в .env (например, 6380)
+      # Это позволяет IAM-сервису обращаться к Redis по порту хоста
+
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      # Проверка: если Redis отвечает на команду ping, значит он жив
+      interval: 10s # Проверяем Redis каждые 10 секунд
+      timeout: 5s # Ждём ответа до 5 секунд
+      retries: 5 # После 5 неудачных попыток контейнер считается unhealthy
+
+    restart: unless-stopped
+    # Перезапуск Redis при сбое, если контейнер не остановлен вручную

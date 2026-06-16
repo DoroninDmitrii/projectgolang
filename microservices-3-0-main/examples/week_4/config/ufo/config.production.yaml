@@ -1,0 +1,11 @@
+grpc:
+  host: "0.0.0.0"
+  port: "50051"
+
+pg:
+  host: "postgres-production"
+  port: "5432"
+  database: "ufo"
+  user: "MUST_BE_SET_VIA_ENV"
+  password: "MUST_BE_SET_VIA_ENV"
+  sslmode: "require"

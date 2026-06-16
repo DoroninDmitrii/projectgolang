@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package ufo.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/olezhek28-courses/microservices-course-examples/examples/week_1/http_grpc_integration/shared/pkg/proto/ufo/v1;ufov1";
+
+// UFOService управляет информацией о наблюдениях НЛО
+service UFOService {
+  // Get возвращает информацию о наблюдении по ID
+  rpc Get(GetRequest) returns (GetResponse);
+
+  // List возвращает список всех наблюдений
+  rpc List(ListRequest) returns (ListResponse);
+
+  // Create создаёт новое наблюдение
+  rpc Create(CreateRequest) returns (CreateResponse);
+}
+
+// Sighting представляет наблюдение НЛО
+message Sighting {
+  // id уникальный идентификатор наблюдения
+  string id = 1;
+  // location место наблюдения
+  string location = 2;
+  // description описание наблюдаемого объекта
+  string description = 3;
+  // observed_at время наблюдения
+  google.protobuf.Timestamp observed_at = 4;
+}
+
+// GetRequest запрос на получение наблюдения
+message GetRequest {
+  // id идентификатор запрашиваемого наблюдения
+  string id = 1;
+}
+
+// GetResponse ответ с информацией о наблюдении
+message GetResponse {
+  // sighting запрошенное наблюдение
+  Sighting sighting = 1;
+}
+
+// ListRequest запрос на получение списка наблюдений
+message ListRequest {}
+
+// ListResponse ответ со списком наблюдений
+message ListResponse {
+  // sightings список всех наблюдений
+  repeated Sighting sightings = 1;
+}
+
+// CreateRequest запрос на создание наблюдения
+message CreateRequest {
+  // location место наблюдения
+  string location = 1;
+  // description описание наблюдаемого объекта
+  string description = 2;
+}
+
+// CreateResponse ответ с созданным наблюдением
+message CreateResponse {
+  // sighting только что созданное наблюдение
+  Sighting sighting = 1;
+}

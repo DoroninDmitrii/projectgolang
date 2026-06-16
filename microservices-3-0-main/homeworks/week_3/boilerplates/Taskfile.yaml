@@ -1,0 +1,121 @@
+# Добавьте эти задачи в свой текущий Taskfile.
+#
+# goose:install              — установка goose (миграции БД)
+# up-core / down-core        — создание/удаление общей сети microservices-net
+# up-order / down-order      — поднятие/остановка PostgreSQL для OrderService
+# up-inventory / down-inventory — поднятие/остановка PostgreSQL для InventoryService
+# up-all / down-all          — поднятие/остановка всей инфраструктуры
+# migrate:order:up/down/status     — управление миграциями OrderService
+# migrate:inventory:up/down/status — управление миграциями InventoryService
+
+version: '3'
+
+vars:
+  GOOSE_VERSION: 'v3.27.1'
+  GOOSE: '{{.BIN_DIR}}/goose'
+
+tasks:
+  goose:install:
+    desc: "Устанавливает goose (миграции БД)"
+    cmds:
+      - echo '📦 Устанавливаем goose...'
+      - GOBIN={{.BIN_DIR}} go install github.com/pressly/goose/v3/cmd/goose@{{.GOOSE_VERSION}}
+    status:
+      - test -x {{.GOOSE}}
+
+  up-core:
+    desc: "Создать общую сеть для микросервисов"
+    cmds:
+      - echo '[task] 🌐 Создаём общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+      - docker network create microservices-net 2>/dev/null || true
+
+  down-core:
+    desc: "Удалить общую сеть микросервисов"
+    cmds:
+      - echo '[task] 🛑 Удаляем общую сеть microservices-net'
+      - docker network rm microservices-net 2>/dev/null || true
+
+  up-order:
+    desc: Поднять Order сервис и все его зависимости
+    dir: deploy/compose/order
+    cmds:
+      - echo "[task] 📦 Поднимаем Order с зависимостями"
+      - docker compose --env-file ../../../order.env up --build --detach
+
+  down-order:
+    desc: Остановить и удалить Order сервис и все его зависимости
+    dir: deploy/compose/order
+    cmds:
+      - echo "[task] 🛑 Останавливаем Order с зависимостями"
+      - docker compose --env-file ../../../order.env down --volumes
+
+  up-inventory:
+    desc: Поднять Inventory сервис и все его зависимости
+    dir: deploy/compose/inventory
+    cmds:
+      - echo "[task] 📦 Поднимаем Inventory с зависимостями"
+      - docker compose --env-file ../../../inventory.env up --build --detach
+
+  down-inventory:
+    desc: Остановить и удалить Inventory сервис и все его зависимости
+    dir: deploy/compose/inventory
+    cmds:
+      - echo "[task] 🛑 Останавливаем Inventory с зависимостями"
+      - docker compose --env-file ../../../inventory.env down --volumes
+
+  up-all:
+    desc: Поднять все сервисы по очереди вместе с зависимостями
+    cmds:
+      - task up-core
+      - task up-inventory
+      - task up-order
+
+  down-all:
+    desc: Остановить и удалить все сервисы по очереди вместе с зависимостями
+    cmds:
+      - task down-order
+      - task down-inventory
+      - task down-core
+
+  migrate:order:up:
+    desc: "Применяет все миграции Order-сервиса"
+    deps: [goose:install]
+    dotenv: ['order.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+
+  migrate:order:down:
+    desc: "Откатывает последнюю миграцию Order-сервиса"
+    deps: [goose:install]
+    dotenv: ['order.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+
+  migrate:order:status:
+    desc: "Показывает статус миграций Order-сервиса"
+    deps: [goose:install]
+    dotenv: ['order.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
+
+  migrate:inventory:up:
+    desc: "Применяет все миграции Inventory-сервиса"
+    deps: [goose:install]
+    dotenv: ['inventory.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" up'
+
+  migrate:inventory:down:
+    desc: "Откатывает последнюю миграцию Inventory-сервиса"
+    deps: [goose:install]
+    dotenv: ['inventory.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" down'
+
+  migrate:inventory:status:
+    desc: "Показывает статус миграций Inventory-сервиса"
+    deps: [goose:install]
+    dotenv: ['inventory.env']
+    cmds:
+      - '{{.GOOSE}} -dir $MIGRATIONS_DIR postgres "$DB_URI" status'
