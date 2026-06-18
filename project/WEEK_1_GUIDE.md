@@ -300,11 +300,31 @@ defer cancel()
 ## 7. Пошаговый план (трекер 12 пунктов)
 
 ### PR #1 — Контракты
-- [ ] **1. Скопировать boilerplate** — ✅ уже сделано (папка `project/` готова).
-- [ ] **2. Дописать `inventory.proto`** (метод ListParts, типы деталей, поля Part, Response-сообщения).
-- [ ] **3. Дописать `payment.proto`** (способы оплаты, поля запроса, Response-сообщение).
-- [ ] **4. Заменить `github.com/student`** на свой модуль во всех файлах.
-- [ ] **5. `task proto:gen` и `task ogen:gen` без ошибок.**
+
+- [x] **1. Скопировать boilerplate** — папка `project/` готова.
+
+- [x] **2. Дописать `inventory.proto`** — добавлены:
+  - `enum PartType`: значения `SHIELD = 3`, `WEAPON = 4` (было только HULL и ENGINE).
+  - `message Part`: поля `part_type`, `stock_quantity`, `created_at` (нужны для фильтрации, проверки наличия на складе и метаданных).
+  - `message GetPartResponse` (обёртка над `Part` — protobuf-стиль: RPC всегда возвращает message, не примитив).
+  - `rpc ListParts` + `ListPartsRequest`/`ListPartsResponse` (Order вызывает ListParts со списком UUID, чтобы за один запрос проверить все детали заказа).
+
+- [x] **3. Дописать `payment.proto`** — добавлены:
+  - `enum PaymentMethod`: значения `CREDIT_CARD = 3`, `INVESTOR_MONEY = 4`.
+  - `PayOrderRequest.payment_method` (Payment должен знать способ оплаты; `UNSPECIFIED` → `INVALID_ARGUMENT`).
+  - `message PayOrderResponse` с полем `transaction_uuid` (Payment генерирует UUID транзакции, Order его сохраняет).
+
+- [x] **4. Заменить `github.com/student`** — заменено на `github.com/DoroninDmitrii/projectgolang/project` в:
+  - всех `go.mod` (4 файла: shared, inventory, order, payment),
+  - `go.work`,
+  - `go_package` в обоих `.proto`,
+  - gci-prefix в `Taskfile.yaml` и `.golangci.yml`,
+  - импортах в Go-коде.
+
+- [x] **5. `task proto:gen` и `task ogen:gen` без ошибок.** — сгенерированный код:
+  - `shared/pkg/proto/` — Go-структуры и gRPC клиент/сервер из `.proto` (buf).
+  - `shared/pkg/openapi/order/v1/` — HTTP-хэндлеры, роутинг, JSON-сериализация из OpenAPI (ogen).
+
 - [ ] **6. Создать PR с контрактами.**
 
 ### PR #2 — Реализация

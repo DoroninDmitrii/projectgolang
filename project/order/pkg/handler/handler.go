@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	orderv1 "github.com/student/shared/pkg/openapi/order/v1"
-	inventoryv1 "github.com/student/shared/pkg/proto/inventory/v1"
-	paymentv1 "github.com/student/shared/pkg/proto/payment/v1"
+	orderv1 "github.com/DoroninDmitrii/projectgolang/project/shared/pkg/openapi/order/v1"
+	inventoryv1 "github.com/DoroninDmitrii/projectgolang/project/shared/pkg/proto/inventory/v1"
+	paymentv1 "github.com/DoroninDmitrii/projectgolang/project/shared/pkg/proto/payment/v1"
 )
 
 // OrderStatus — статус заказа
