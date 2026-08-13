@@ -325,13 +325,29 @@ defer cancel()
   - `shared/pkg/proto/` — Go-структуры и gRPC клиент/сервер из `.proto` (buf).
   - `shared/pkg/openapi/order/v1/` — HTTP-хэндлеры, роутинг, JSON-сериализация из OpenAPI (ogen).
 
-- [ ] **6. Создать PR с контрактами.**
+- [x] **6. Создать PR с контрактами.**
 
 ### PR #2 — Реализация
-- [ ] **7. Реализовать InventoryService** (`GetPart`, `ListParts`).
-- [ ] **8. Реализовать PaymentService** (`PayOrder`).
-- [ ] **9. Реализовать OrderService** (`CreateOrder`, `PayOrder`, `CancelOrder`, + `main.go`).
-- [ ] **10. `task lint` и `task test:api` без ошибок.**
+
+- [x] **7. Реализовать InventoryService** (`GetPart`, `ListParts`) — добавлены:
+  - `partToProto()` — конвертация внутреннего `Part` в protobuf `inventoryv1.Part` (разделение внутреннего представления от сетевого контракта).
+  - `GetPart` — валидация UUID (пустой/невалидный → `INVALID_ARGUMENT`), поиск в map (не найден → `NOT_FOUND`), конвертация и возврат.
+  - `ListParts` — два режима: по списку UUID (порядок сохраняется, любой невалидный/не найденный → ошибка) или фильтрация по типу (`UNSPECIFIED` = все, сортировка по имени).
+  - Подробный разбор: см. `inventory/HOW_IT_WORKS.md`.
+- [x] **8. Реализовать PaymentService** (`PayOrder`) — сервис stateless (не хранит данные, только валидирует и генерирует новую транзакцию каждый раз):
+  - `PayOrder` — три проверки подряд (`order_uuid` пустой/невалидный → `INVALID_ARGUMENT`, `payment_method == UNSPECIFIED` → `INVALID_ARGUMENT`), затем `uuid.New()` генерирует `transaction_uuid`.
+  - Добавлена зависимость `github.com/google/uuid` в `payment/go.mod`.
+  - Проверено через `grpcurl` — успех и все варианты ошибок.
+  - Подробный разбор: см. `payment/HOW_IT_WORKS.md`.
+- [x] **9. Реализовать OrderService** (`CreateOrder`, `PayOrder`, `CancelOrder`, + `main.go`) — единственный HTTP-сервис, оркеструет два gRPC:
+  - `CreateOrder` — собирает список пришедших UUID (`Opt.Get()` для опциональных), **один** вызов `Inventory.ListParts` на все детали, маппинг gRPC-ошибок в HTTP через `status.FromError` (`NotFound`→404, `InvalidArgument`→400), проверка `StockQuantity <= 0`→409, суммирование цен, сохранение под `Lock()`.
+  - `PayOrder` — **один `Lock()` на весь метод** (гонка check-then-write: при раздельных `RLock`/`Lock` два параллельных запроса оплатили бы заказ дважды), проверка статуса→409, маппинг `orderv1.PaymentMethod` (string) → `paymentv1.PaymentMethod` (protobuf enum) через map-таблицу, вызов Payment, сохранение `transaction_uuid` и статуса `PAID`.
+  - `CancelOrder` — тот же паттерн, без внешних вызовов: не найден→404, статус != `PENDING_PAYMENT`→409, иначе `CANCELLED`.
+  - `main.go` — исправлен баг с необъявленным `paymentConn`; keepalive для обоих gRPC-клиентов; `&http.Server{}` с четырьмя таймаутами вместо `http.ListenAndServe` (`ReadHeaderTimeout` — защита от Slowloris); graceful shutdown через `signal.NotifyContext` + `select` по каналу ошибки и сигналу; вся логика вынесена в `run() error`, чтобы `os.Exit` не отменял `defer`.
+  - Подробный разбор: см. `order/HOW_IT_WORKS.md`, общая картина системы — `HOW_IT_ALL_WORKS.md`.
+- [x] **10. `task lint` и `task test:api` без ошибок.**
+  - `task test:api` — все тесты зелёные.
+  - `task lint` — 0 замечаний. По пути починено: keepalive (`grpc.KeepaliveParams` + `KeepaliveEnforcementPolicy`) и graceful shutdown (`GracefulStop()`) в `main.go` Inventory и Payment; `net.Listen` → `(*net.ListenConfig).Listen` с контекстом (`noctx`); `os.Exit` вынесен из `run()` (`gocritic`: иначе `defer` не выполняются); форматирование через `task format`.
 - [ ] **11. Настроить git-хук** (`scripts/pre-commit`) — опционально.
 - [ ] **12. Создать PR с реализацией, CI зелёный.**
 

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"log/slog"
+	"sort"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -26,6 +28,19 @@ type Part struct {
 type server struct {
 	inventoryv1.UnimplementedInventoryServiceServer
 	parts map[uuid.UUID]Part
+}
+
+// конвертации из внутреннего Part в protobuf inventoryv1.Part
+func partToProto(p Part) *inventoryv1.Part {
+	return &inventoryv1.Part{
+		Uuid:          p.UUID,
+		Name:          p.Name,
+		Description:   p.Description,
+		Price:         p.Price,
+		PartType:      p.PartType,
+		StockQuantity: p.StockQuantity,
+		CreatedAt:     p.CreatedAt,
+	}
 }
 
 // NewServer создаёт сервер с предзагруженными seed-данными
@@ -106,21 +121,24 @@ func (s *server) GetPart(
 	ctx context.Context,
 	req *inventoryv1.GetPartRequest,
 ) (*inventoryv1.GetPartResponse, error) {
-	// TODO: Реализовать метод
-	// 1. Проверить, что uuid не пустой → INVALID_ARGUMENT
-	// 2. Валидировать формат UUID → INVALID_ARGUMENT
-	// 3. Найти деталь в map
-	// 4. Если не найдена → NOT_FOUND
-	// 5. Преобразовать в inventoryv1.Part
-	// 6. Вернуть деталь
+	slog.Info("GetPart вызван", "uuid", req.GetUuid())
+	if req.GetUuid() == "" {
+		return nil, status.Error(codes.InvalidArgument, "uuid cannot be empty")
+	}
 
-	// TODO: Валидация формата UUID v4
-	// Можно использовать github.com/google/uuid:
-	// if _, err := uuid.Parse(req.GetUuid()); err != nil {
-	//     return nil, status.Errorf(codes.InvalidArgument, "неверный формат uuid: %s", req.GetUuid())
-	// }
+	id, err := uuid.Parse(req.GetUuid())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "incorrect uuid format: %s", req.GetUuid())
+	}
 
-	return nil, status.Error(codes.Unimplemented, "метод GetPart не реализован")
+	part, ok := s.parts[id]
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "detail is not found: %s", req.GetUuid())
+	}
+	slog.Info("возвращаем деталь", "name", part)
+	return &inventoryv1.GetPartResponse{
+		Part: partToProto(part),
+	}, nil
 }
 
 // ListParts возвращает список деталей с опциональной фильтрацией по типу
@@ -128,13 +146,35 @@ func (s *server) ListParts(
 	ctx context.Context,
 	req *inventoryv1.ListPartsRequest,
 ) (*inventoryv1.ListPartsResponse, error) {
-	// TODO: Реализовать метод
-	// 1. Если передан список uuids → найти детали по UUID (сохраняя порядок запроса)
-	//    - Проверить формат каждого UUID → INVALID_ARGUMENT
-	//    - Если хоть один UUID не найден → NOT_FOUND
-	// 2. Иначе если part_type == UNSPECIFIED → вернуть все детали
-	// 3. Иначе → фильтровать по типу
-	// 4. Отсортировать по имени (только для фильтрации по типу, не для uuids)
+	if len(req.GetUuids()) > 0 {
+		parts := make([]*inventoryv1.Part, 0, len(req.GetUuids()))
+		for _, raw := range req.GetUuids() {
+			id, err := uuid.Parse(raw)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "incorrect format uuid: %s", raw)
+			}
 
-	return nil, status.Error(codes.Unimplemented, "метод ListParts не реализован")
+			part, ok := s.parts[id]
+
+			if !ok {
+				return nil, status.Errorf(codes.NotFound, "detail is not found: %s", raw)
+			}
+
+			parts = append(parts, partToProto(part))
+		}
+
+		return &inventoryv1.ListPartsResponse{Parts: parts}, nil
+	}
+
+	parts := make([]*inventoryv1.Part, 0, len(s.parts))
+	for _, p := range s.parts {
+		if req.GetPartType() == inventoryv1.PartType_PART_TYPE_UNSPECIFIED || p.PartType == req.GetPartType() {
+			parts = append(parts, partToProto(p))
+		}
+	}
+
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].GetName() < parts[j].GetName()
+	})
+	return &inventoryv1.ListPartsResponse{Parts: parts}, nil
 }
