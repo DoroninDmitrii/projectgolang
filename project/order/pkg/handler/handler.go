@@ -15,6 +15,14 @@ import (
 	paymentv1 "github.com/DoroninDmitrii/projectgolang/project/shared/pkg/proto/payment/v1"
 )
 
+// Бюджет времени на один исходящий gRPC-вызов.
+// Дедлайн уезжает на сервер в заголовке grpc-timeout, поэтому вызываемый сервис
+// прекращает работу вместе с нами, а не продолжает считать результат в пустоту.
+const (
+	inventoryCallTimeout = 3 * time.Second
+	paymentCallTimeout   = 5 * time.Second
+)
+
 // OrderStatus — статус заказа
 type OrderStatus string
 
@@ -160,7 +168,10 @@ func (h *handler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderReque
 		uuids = append(uuids, weaponUUID.String())
 	}
 
-	listResp, err := h.inventoryClient.ListParts(ctx, &inventoryv1.ListPartsRequest{
+	callCtx, cancel := context.WithTimeout(ctx, inventoryCallTimeout)
+	defer cancel()
+
+	listResp, err := h.inventoryClient.ListParts(callCtx, &inventoryv1.ListPartsRequest{
 		Uuids: uuids,
 	})
 	if err != nil {
@@ -170,6 +181,13 @@ func (h *handler) CreateOrder(ctx context.Context, req *orderv1.CreateOrderReque
 			return &orderv1.CreateOrderNotFound{Code: http.StatusNotFound, Message: "detail is not found"}, nil
 		case codes.InvalidArgument:
 			return &orderv1.CreateOrderBadRequest{Code: http.StatusBadRequest, Message: "incorrect request to InventoryService"}, nil
+		case codes.DeadlineExceeded:
+			return &orderv1.CreateOrderInternalServerError{Code: http.StatusInternalServerError, Message: "InventoryService is not responding in time"}, nil
+		case codes.Unavailable:
+			return &orderv1.CreateOrderInternalServerError{Code: http.StatusInternalServerError, Message: "InventoryService is unavailable"}, nil
+		case codes.Canceled:
+			// Клиент оборвал запрос — ответ уже никто не прочитает
+			return &orderv1.CreateOrderInternalServerError{Code: http.StatusInternalServerError, Message: "request canceled by client"}, nil
 		default:
 			return &orderv1.CreateOrderInternalServerError{Code: http.StatusInternalServerError, Message: "internal service error"}, nil
 		}
@@ -235,7 +253,10 @@ func (h *handler) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, pa
 		return &orderv1.PayOrderInternalServerError{Code: http.StatusInternalServerError, Message: "неизвестный способ оплаты"}, nil
 	}
 
-	payResp, err := h.paymentClient.PayOrder(ctx, &paymentv1.PayOrderRequest{
+	callCtx, cancel := context.WithTimeout(ctx, paymentCallTimeout)
+	defer cancel()
+
+	payResp, err := h.paymentClient.PayOrder(callCtx, &paymentv1.PayOrderRequest{
 		OrderUuid:     params.OrderUUID.String(),
 		PaymentMethod: protoMethod,
 	})
@@ -246,6 +267,13 @@ func (h *handler) PayOrder(ctx context.Context, req *orderv1.PayOrderRequest, pa
 			return &orderv1.PayOrderNotFound{Code: http.StatusNotFound, Message: "заказ не найден в PaymentService"}, nil
 		case codes.InvalidArgument:
 			return &orderv1.PayOrderBadRequest{Code: http.StatusBadRequest, Message: "некорректный запрос к PaymentService"}, nil
+		case codes.DeadlineExceeded:
+			return &orderv1.PayOrderInternalServerError{Code: http.StatusInternalServerError, Message: "PaymentService не ответил вовремя"}, nil
+		case codes.Unavailable:
+			return &orderv1.PayOrderInternalServerError{Code: http.StatusInternalServerError, Message: "PaymentService недоступен"}, nil
+		case codes.Canceled:
+			// Клиент оборвал запрос — ответ уже никто не прочитает
+			return &orderv1.PayOrderInternalServerError{Code: http.StatusInternalServerError, Message: "запрос отменён клиентом"}, nil
 		default:
 			return &orderv1.PayOrderInternalServerError{Code: http.StatusInternalServerError, Message: "ошибка оплаты"}, nil
 		}
