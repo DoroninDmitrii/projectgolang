@@ -26,11 +26,16 @@ const (
 type PartType int32
 
 const (
+	// Тип детали не указан
 	PartType_PART_TYPE_UNSPECIFIED PartType = 0
-	PartType_PART_TYPE_HULL        PartType = 1
-	PartType_PART_TYPE_ENGINE      PartType = 2
-	PartType_PART_TYPE_SHIELD      PartType = 3
-	PartType_PART_TYPE_WEAPON      PartType = 4
+	// Корпус корабля
+	PartType_PART_TYPE_HULL PartType = 1
+	// Двигатель
+	PartType_PART_TYPE_ENGINE PartType = 2
+	// Энергетический щит
+	PartType_PART_TYPE_SHIELD PartType = 3
+	// Вооружение
+	PartType_PART_TYPE_WEAPON PartType = 4
 )
 
 // Enum value maps for PartType.
@@ -180,8 +185,9 @@ func (x *Part) GetCreatedAt() *timestamppb.Timestamp {
 
 // Запрос на получение детали по UUID
 type GetPartRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Uuid          string                 `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// UUID запрашиваемой детали
+	Uuid          string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,8 +231,9 @@ func (x *GetPartRequest) GetUuid() string {
 
 // Ответ с деталью
 type GetPartResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Part          *Part                  `protobuf:"bytes,1,opt,name=part,proto3" json:"part,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Найденная деталь
+	Part          *Part `protobuf:"bytes,1,opt,name=part,proto3" json:"part,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -270,9 +277,11 @@ func (x *GetPartResponse) GetPart() *Part {
 
 // Запрос на получение списка деталей
 type ListPartsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PartType      PartType               `protobuf:"varint,1,opt,name=part_type,json=partType,proto3,enum=inventory.v1.PartType" json:"part_type,omitempty"`
-	Uuids         []string               `protobuf:"bytes,2,rep,name=uuids,proto3" json:"uuids,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Фильтр по типу детали; PART_TYPE_UNSPECIFIED — без фильтрации
+	PartType PartType `protobuf:"varint,1,opt,name=part_type,json=partType,proto3,enum=inventory.v1.PartType" json:"part_type,omitempty"`
+	// Фильтр по списку UUID; пустой список — без фильтрации
+	Uuids         []string `protobuf:"bytes,2,rep,name=uuids,proto3" json:"uuids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -323,8 +332,9 @@ func (x *ListPartsRequest) GetUuids() []string {
 
 // Ответ со списком деталей
 type ListPartsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parts         []*Part                `protobuf:"bytes,1,rep,name=parts,proto3" json:"parts,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Детали, подошедшие под фильтр
+	Parts         []*Part `protobuf:"bytes,1,rep,name=parts,proto3" json:"parts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

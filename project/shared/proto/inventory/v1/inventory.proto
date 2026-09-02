@@ -16,10 +16,19 @@ service InventoryService {
 
 // Тип детали
 enum PartType {
+  // Тип детали не указан
   PART_TYPE_UNSPECIFIED = 0;
+
+  // Корпус корабля
   PART_TYPE_HULL = 1;
+
+  // Двигатель
   PART_TYPE_ENGINE = 2;
+
+  // Энергетический щит
   PART_TYPE_SHIELD = 3;
+
+  // Вооружение
   PART_TYPE_WEAPON = 4;
 }
 
@@ -49,21 +58,27 @@ message Part {
 
 // Запрос на получение детали по UUID
 message GetPartRequest {
+  // UUID запрашиваемой детали
   string uuid = 1;
 }
 
 // Ответ с деталью
 message GetPartResponse {
+  // Найденная деталь
   Part part = 1;
 }
 
 // Запрос на получение списка деталей
 message ListPartsRequest {
+  // Фильтр по типу детали; PART_TYPE_UNSPECIFIED — без фильтрации
   PartType part_type = 1;
+
+  // Фильтр по списку UUID; пустой список — без фильтрации
   repeated string uuids = 2;
 }
 
 // Ответ со списком деталей
 message ListPartsResponse {
+  // Детали, подошедшие под фильтр
   repeated Part parts = 1;
 }

@@ -12,10 +12,19 @@ service PaymentService {
 
 // Способ оплаты
 enum PaymentMethod {
+  // Способ оплаты не указан
   PAYMENT_METHOD_UNSPECIFIED = 0;
+
+  // Оплата банковской картой
   PAYMENT_METHOD_CARD = 1;
+
+  // Оплата через Систему быстрых платежей
   PAYMENT_METHOD_SBP = 2;
+
+  // Оплата кредитной картой
   PAYMENT_METHOD_CREDIT_CARD = 3;
+
+  // Оплата деньгами инвестора
   PAYMENT_METHOD_INVESTOR_MONEY = 4;
 }
 
@@ -28,6 +37,7 @@ message PayOrderRequest {
   PaymentMethod payment_method = 2;
 }
 
+// Ответ с результатом оплаты заказа
 message PayOrderResponse {
   // UUID транзакции, сгенерированный сервисом
   string transaction_uuid = 1;

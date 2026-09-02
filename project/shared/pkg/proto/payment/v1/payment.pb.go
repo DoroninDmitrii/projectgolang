@@ -25,10 +25,15 @@ const (
 type PaymentMethod int32
 
 const (
-	PaymentMethod_PAYMENT_METHOD_UNSPECIFIED    PaymentMethod = 0
-	PaymentMethod_PAYMENT_METHOD_CARD           PaymentMethod = 1
-	PaymentMethod_PAYMENT_METHOD_SBP            PaymentMethod = 2
-	PaymentMethod_PAYMENT_METHOD_CREDIT_CARD    PaymentMethod = 3
+	// Способ оплаты не указан
+	PaymentMethod_PAYMENT_METHOD_UNSPECIFIED PaymentMethod = 0
+	// Оплата банковской картой
+	PaymentMethod_PAYMENT_METHOD_CARD PaymentMethod = 1
+	// Оплата через Систему быстрых платежей
+	PaymentMethod_PAYMENT_METHOD_SBP PaymentMethod = 2
+	// Оплата кредитной картой
+	PaymentMethod_PAYMENT_METHOD_CREDIT_CARD PaymentMethod = 3
+	// Оплата деньгами инвестора
 	PaymentMethod_PAYMENT_METHOD_INVESTOR_MONEY PaymentMethod = 4
 )
 
@@ -132,6 +137,7 @@ func (x *PayOrderRequest) GetPaymentMethod() PaymentMethod {
 	return PaymentMethod_PAYMENT_METHOD_UNSPECIFIED
 }
 
+// Ответ с результатом оплаты заказа
 type PayOrderResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// UUID транзакции, сгенерированный сервисом

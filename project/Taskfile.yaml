@@ -109,6 +109,16 @@ tasks:
       - echo '🔍 Проверяем .proto-файлы...'
       - '{{.BUF}} lint'
 
+  proto:lint:ci:
+    desc: "Проверяет .proto: форматирование + линтер (без записи в файлы)"
+    deps: [buf:install]
+    dir: shared/proto
+    cmds:
+      - echo '🔍 Проверяем форматирование .proto-файлов...'
+      - '{{.BUF}} format --diff --exit-code'
+      - echo '🔍 Проверяем .proto-файлы линтером...'
+      - '{{.BUF}} lint'
+
   proto:gen:
     desc: "Генерирует Go-код из .proto"
     deps: [buf:install, proto:install-plugins, proto:format]
@@ -169,3 +179,8 @@ tasks:
     desc: "Запускает API-тесты"
     cmds:
       - go test -v ./order/tests/...
+
+  test:race:
+    desc: "Запускает API-тесты с детектором гонок (используется в CI)"
+    cmds:
+      - go test -race -v ./order/tests/...
