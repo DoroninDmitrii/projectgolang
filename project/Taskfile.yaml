@@ -10,6 +10,7 @@ vars:
   PROTOC_GEN_GO_VERSION: 'v1.36.11'
   PROTOC_GEN_GO_GRPC_VERSION: 'v1.6.1'
   OGEN_VERSION: 'v1.20.3'
+  MOCKERY_VERSION: 'v3.7.0'
 
   BIN_DIR: '{{.ROOT_DIR}}/bin'
   GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
@@ -19,6 +20,11 @@ vars:
   PROTOC_GEN_GO: '{{.BIN_DIR}}/protoc-gen-go'
   PROTOC_GEN_GO_GRPC: '{{.BIN_DIR}}/protoc-gen-go-grpc'
   OGEN: '{{.BIN_DIR}}/ogen'
+  MOCKERY: '{{.BIN_DIR}}/mockery'
+
+  COVERAGE_DIR: '{{.ROOT_DIR}}/coverage'
+  COVERAGE_FILE: '{{.COVERAGE_DIR}}/coverage.out'
+  COVERAGE_THRESHOLD: '40'
 
   MODULES: order inventory payment
 
@@ -69,9 +75,24 @@ tasks:
     status:
       - test -x {{.OGEN}}
 
+  mockery:install:
+    desc: "Устанавливает mockery"
+    cmds:
+      - echo '📦 Устанавливаем mockery...'
+      - GOBIN={{.BIN_DIR}} go install github.com/vektra/mockery/v3@{{.MOCKERY_VERSION}}
+    status:
+      - test -x {{.MOCKERY}}
+
   setup:
     desc: "Устанавливает все инструменты"
-    deps: [formatters:install, golangci-lint:install, buf:install, proto:install-plugins, ogen:install]
+    deps: [formatters:install, golangci-lint:install, buf:install, proto:install-plugins, ogen:install, mockery:install]
+
+  mocks:gen:
+    desc: "Генерирует моки интерфейсов"
+    deps: [mockery:install]
+    cmds:
+      - echo '🧪 Генерация моков...'
+      - '{{.MOCKERY}}'
 
   format:
     desc: "Форматирует код (gofumpt + gci)"
@@ -171,9 +192,81 @@ tasks:
       - go run ./cmd
 
   test:
-    desc: "Запускает все тесты (на week_1 алиас на test:api)"
+    desc: "Запускает unit-тесты с race-детектором (без API-тестов из order/tests)"
     cmds:
-      - task: test:api
+      - |
+        for mod in {{.MODULES}}; do
+          echo "=== $mod ==="
+          (cd "$mod" && MOD=$(go list -m) && go test -v -race -count=1 $(go list ./... | grep -vE "^${MOD}/tests(/|$)"))
+        done
+
+  coverage:clean:
+    desc: "Очищает директорию с отчётами покрытия"
+    internal: true
+    cmds:
+      - rm -rf {{.COVERAGE_DIR}}
+      - mkdir -p {{.COVERAGE_DIR}}
+
+  test:coverage:
+    desc: "Тесты с покрытием бизнес-логики (без API-тестов из order/tests)"
+    deps: [coverage:clean]
+    vars:
+      TARGET_PACKAGES:
+        sh: |
+          for mod in {{.MODULES}}; do
+            (cd "$mod" && go list ./... | grep -v "/mocks" | grep -E '/(api|service)/')
+          done | tr '\n' ','
+    preconditions:
+      - sh: test -n "{{.TARGET_PACKAGES}}"
+        msg: "Не найдено пакетов для тестирования"
+    cmds:
+      - echo "📦 Целевые пакеты:{{.TARGET_PACKAGES}}"
+      - |
+        for mod in {{.MODULES}}; do
+          echo "=== $mod ==="
+          (cd "$mod" && MOD=$(go list -m) && go test -v -race -covermode=atomic -coverprofile={{.COVERAGE_DIR}}/${mod}.out -coverpkg={{.TARGET_PACKAGES}} $(go list ./... | grep -vE "^${MOD}/tests(/|$)"))
+        done
+      - echo "📊 Объединяем отчёты покрытия..."
+      - |
+        head -1 {{.COVERAGE_DIR}}/order.out > {{.COVERAGE_FILE}}
+        for mod in {{.MODULES}}; do
+          tail -n +2 "{{.COVERAGE_DIR}}/${mod}.out" >> {{.COVERAGE_FILE}}
+        done
+      - echo "📊 Покрытие по функциям:"
+      - go tool cover -func={{.COVERAGE_FILE}}
+      - task: coverage:threshold
+
+  coverage:threshold:
+    desc: "Проверяет соответствие покрытия порогу"
+    internal: true
+    vars:
+      COVERAGE:
+        sh: go tool cover -func={{.COVERAGE_FILE}} | tail -n1 | awk '{print $NF}' | tr -d '%'
+    preconditions:
+      - sh: test -f {{.COVERAGE_FILE}}
+        msg: "Файл покрытия не найден. Запустите task test:coverage"
+    cmds:
+      - echo "🧾 Общее покрытие:{{.COVERAGE}}% | Порог:{{.COVERAGE_THRESHOLD}}%"
+      - cmd: test $(echo "{{.COVERAGE}} >= {{.COVERAGE_THRESHOLD}}" | bc) -eq 1
+      - echo "✅ Покрытие соответствует порогу"
+
+  coverage:check:
+    desc: "Проверяет покрытие без запуска тестов"
+    cmds:
+      - task: coverage:threshold
+
+  coverage:html:
+    desc: "Генерирует HTML-отчёт покрытия"
+    deps: [test:coverage]
+    vars:
+      HTML_FILE: '{{.COVERAGE_DIR}}/coverage.html'
+    cmds:
+      - go tool cover -html={{.COVERAGE_FILE}} -o {{.HTML_FILE}}
+      - echo "🌐 Отчёт сохранён в {{.HTML_FILE}}"
+      - cmd: open {{.HTML_FILE}}
+        platforms: [darwin]
+      - cmd: xdg-open {{.HTML_FILE}}
+        platforms: [linux]
 
   test:api:
     desc: "Запускает API-тесты"

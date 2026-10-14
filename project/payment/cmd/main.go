@@ -13,8 +13,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 
-	paymentService "github.com/DoroninDmitrii/projectgolang/project/payment/pkg/service"
-	paymentv1 "github.com/DoroninDmitrii/projectgolang/project/shared/pkg/proto/payment/v1"
+	"github.com/DoroninDmitrii/projectgolang/project/payment/pkg/app"
 )
 
 const grpcAddress = ":50052"
@@ -47,7 +46,7 @@ func run() error {
 		return err
 	}
 
-	grpcServer := grpc.NewServer(
+	opts := append(app.Interceptors(),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionIdle:     grpcMaxConnectionIdle,
 			MaxConnectionAge:      grpcMaxConnectionAge,
@@ -60,7 +59,9 @@ func run() error {
 			PermitWithoutStream: true,
 		}),
 	)
-	paymentv1.RegisterPaymentServiceServer(grpcServer, paymentService.NewServer())
+
+	grpcServer := grpc.NewServer(opts...)
+	app.RegisterServices(grpcServer)
 
 	// Включаем reflection для postman/grpcurl
 	reflection.Register(grpcServer)
